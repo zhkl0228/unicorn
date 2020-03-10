@@ -778,8 +778,8 @@ static THREAD int tls_var;
 int main(void) { return tls_var; }
 
 EOF
-  if compile_prog "-fPIE -DPIE" "-pie"; then
-    QEMU_CFLAGS="-fPIE -DPIE $QEMU_CFLAGS"
+  if compile_prog "-fPIC -DPIE" "-pie"; then
+    QEMU_CFLAGS="-fPIC -DPIE $QEMU_CFLAGS"
     LDFLAGS="-pie $LDFLAGS"
     pie="yes"
     if compile_prog "" "-Wl,-z,relro -Wl,-z,now" ; then

@@ -23,7 +23,8 @@ endif
 
 CC=gcc
 CFLAGS=-fPIC
-LDFLAGS=-shared -fPIC ../../libunicorn.a
+LDFLAGS=-shared -fPIC
+LIBS=../../libunicorn.a
 INCS=-I$(JAVA_INC) -I$(JAVA_PLATFORM_INC) -I$(UNICORN_INC)
 
 JC=javac
