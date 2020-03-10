@@ -40,11 +40,61 @@ static jmethodID invokeInCallbacks = 0;
 static jmethodID invokeOutCallbacks = 0;
 static jmethodID invokeSyscallCallbacks = 0;
 
-static JavaVM* cachedJVM;
+static jmethodID onBlock = 0;
+static jmethodID onCode = 0;
+static jmethodID onRead = 0;
+static jmethodID onWrite = 0;
+static jmethodID onInterrupt = 0;
+static jmethodID onMemEvent = 0;
 
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
-   cachedJVM = jvm;
-   return JNI_VERSION_1_6;
+static JavaVM* cachedJVM;
+static jclass jclassUnicorn;
+
+static void cb_hookcode_new(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
+   JNIEnv *env;
+   (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+   (*env)->CallVoidMethod(env, user_data, onCode, (jlong)address, (int)size);
+   (*cachedJVM)->DetachCurrentThread(cachedJVM);
+}
+
+static void cb_hookblock_new(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
+   JNIEnv *env;
+   (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+   (*env)->CallVoidMethod(env, user_data, onBlock, (jlong)address, (int)size);
+   (*cachedJVM)->DetachCurrentThread(cachedJVM);
+}
+
+static void cb_hookmem_new(uc_engine *eng, uc_mem_type type,
+        uint64_t address, int size, int64_t value, void *user_data) {
+   JNIEnv *env;
+   (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+   switch (type) {
+      case UC_MEM_READ:
+         (*env)->CallVoidMethod(env, user_data, onRead, (jlong)address, (int)size);
+         break;
+      case UC_MEM_WRITE:
+         (*env)->CallVoidMethod(env, user_data, onWrite, (jlong)address, (int)size, (jlong)value);
+         break;
+      default:
+         break;
+   }
+   (*cachedJVM)->DetachCurrentThread(cachedJVM);
+}
+
+static void cb_hookintr_new(uc_engine *eng, uint32_t intno, void *user_data) {
+   JNIEnv *env;
+   (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+   (*env)->CallVoidMethod(env, user_data, onInterrupt, (int)intno);
+   (*cachedJVM)->DetachCurrentThread(cachedJVM);
+}
+
+static bool cb_eventmem_new(uc_engine *eng, uc_mem_type type,
+                        uint64_t address, int size, int64_t value, void *user_data) {
+   JNIEnv *env;
+   (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+   jboolean res = (*env)->CallBooleanMethod(env, user_data, onMemEvent, (int)type, (jlong)address, (int)size, (jlong)value);
+   (*cachedJVM)->DetachCurrentThread(cachedJVM);
+   return res;
 }
 
 // Callback function for tracing code (UC_HOOK_CODE & UC_HOOK_BLOCK)
@@ -54,11 +104,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
 static void cb_hookcode(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
-   }
-   (*env)->CallStaticVoidMethod(env, clz, invokeCodeCallbacks, (jlong)eng, (jlong)address, (int)size);
+   (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeCodeCallbacks, (jlong)eng, (jlong)address, (int)size);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
 }
 
@@ -69,11 +115,7 @@ static void cb_hookcode(uc_engine *eng, uint64_t address, uint32_t size, void *u
 static void cb_hookblock(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
-   }
-   (*env)->CallStaticVoidMethod(env, clz, invokeBlockCallbacks, (jlong)eng, (jlong)address, (int)size);
+   (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeBlockCallbacks, (jlong)eng, (jlong)address, (int)size);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
 }
 
@@ -83,11 +125,7 @@ static void cb_hookblock(uc_engine *eng, uint64_t address, uint32_t size, void *
 static void cb_hookintr(uc_engine *eng, uint32_t intno, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
-   }
-   (*env)->CallStaticVoidMethod(env, clz, invokeInterruptCallbacks, (jlong)eng, (int)intno);
+   (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeInterruptCallbacks, (jlong)eng, (int)intno);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
 }
 
@@ -99,11 +137,7 @@ static uint32_t cb_insn_in(uc_engine *eng, uint32_t port, int size, void *user_d
    JNIEnv *env;
    uint32_t res = 0;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return 0;
-   }
-   res = (uint32_t)(*env)->CallStaticIntMethod(env, clz, invokeInCallbacks, (jlong)eng, (jint)port, (jint)size);
+   res = (uint32_t)(*env)->CallStaticIntMethod(env, jclassUnicorn, invokeInCallbacks, (jlong)eng, (jint)port, (jint)size);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
    return res;
 }
@@ -115,11 +149,7 @@ static uint32_t cb_insn_in(uc_engine *eng, uint32_t port, int size, void *user_d
 static void cb_insn_out(uc_engine *eng, uint32_t port, int size, uint32_t value, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
-   }
-   (*env)->CallStaticVoidMethod(env, clz, invokeOutCallbacks, (jlong)eng, (jint)port, (jint)size, (jint)value);
+   (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeOutCallbacks, (jlong)eng, (jint)port, (jint)size, (jint)value);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
 }
 
@@ -127,11 +157,7 @@ static void cb_insn_out(uc_engine *eng, uint32_t port, int size, uint32_t value,
 static void cb_insn_syscall(uc_engine *eng, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
-   }
-   (*env)->CallStaticVoidMethod(env, clz, invokeSyscallCallbacks, (jlong)eng);
+   (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeSyscallCallbacks, (jlong)eng);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
 }
 
@@ -145,16 +171,14 @@ static void cb_hookmem(uc_engine *eng, uc_mem_type type,
         uint64_t address, int size, int64_t value, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
-   }
    switch (type) {
       case UC_MEM_READ:
-         (*env)->CallStaticVoidMethod(env, clz, invokeReadCallbacks, (jlong)eng, (jlong)address, (int)size);
+         (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeReadCallbacks, (jlong)eng, (jlong)address, (int)size);
          break;
       case UC_MEM_WRITE:
-         (*env)->CallStaticVoidMethod(env, clz, invokeWriteCallbacks, (jlong)eng, (jlong)address, (int)size, (jlong)value);
+         (*env)->CallStaticVoidMethod(env, jclassUnicorn, invokeWriteCallbacks, (jlong)eng, (jlong)address, (int)size, (jlong)value);
+         break;
+      default:
          break;
    }
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
@@ -171,11 +195,7 @@ static bool cb_eventmem(uc_engine *eng, uc_mem_type type,
                         uint64_t address, int size, int64_t value, void *user_data) {
    JNIEnv *env;
    (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
-   jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
-   if ((*env)->ExceptionCheck(env)) {
-      return false;
-   }
-   jboolean res = (*env)->CallStaticBooleanMethod(env, clz, invokeEventMemCallbacks, (jlong)eng, (int)type, (jlong)address, (int)size, (jlong)value);
+   jboolean res = (*env)->CallStaticBooleanMethod(env, jclassUnicorn, invokeEventMemCallbacks, (jlong)eng, (int)type, (jlong)address, (int)size, (jlong)value);
    (*cachedJVM)->DetachCurrentThread(cachedJVM);
    return res;
 }
@@ -190,13 +210,11 @@ static void throwException(JNIEnv *env, uc_err err) {
 }
 
 static uc_engine *getEngine(JNIEnv *env, jobject self) {
-   static int haveFid = 0;
-   static jfieldID fid;
-   if (haveFid == 0) {
+   static jfieldID fid = 0;
+   if (fid == 0) {
       //cache the field id
       jclass clazz = (*env)->GetObjectClass(env, self);
       fid = (*env)->GetFieldID(env, clazz, "eng", "J");
-      haveFid = 1;
    }
    return (uc_engine *)(*env)->GetLongField(env, self, fid);
 }
@@ -210,12 +228,14 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_reg_1write_1num
   (JNIEnv *env, jobject self, jint regid, jobject value) {
    uc_engine *eng = getEngine(env, self);
 
-   jclass clz = (*env)->FindClass(env, "java/lang/Number");
-   if ((*env)->ExceptionCheck(env)) {
-      return;
+   static jmethodID longValue = 0;
+   if(longValue == 0) {
+       jclass clz = (*env)->FindClass(env, "java/lang/Number");
+       if ((*env)->ExceptionCheck(env)) {
+          return;
+       }
+      longValue = (*env)->GetMethodID(env, clz, "longValue", "()J");
    }
-
-   jmethodID longValue = (*env)->GetMethodID(env, clz, "longValue", "()J");
    jlong longVal = (*env)->CallLongMethod(env, value, longValue);
    uc_err err = uc_reg_write(eng, regid, &longVal);
    if (err != UC_ERR_OK) {
@@ -276,7 +296,10 @@ JNIEXPORT jobject JNICALL Java_unicorn_Unicorn_reg_1read_1num
       throwException(env, err);
    }
 
-   jmethodID cons = (*env)->GetMethodID(env, clz, "<init>", "(J)V");
+   static jmethodID cons = 0;
+   if(cons == 0) {
+      cons = (*env)->GetMethodID(env, clz, "<init>", "(J)V");
+   }
    jobject result = (*env)->NewObject(env, clz, cons, longVal);
    if ((*env)->ExceptionCheck(env)) {
       return NULL;
@@ -516,9 +539,6 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JI
    uc_err err = 0;
    switch (type) {
       case UC_HOOK_INTR:           // Hook all interrupt events
-         if (invokeInterruptCallbacks == 0) {
-            invokeInterruptCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeInterruptCallbacks", "(JI)V");
-         }
          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookintr, env, 1, 0);
          break;
       case UC_HOOK_MEM_FETCH_UNMAPPED:    // Hook for all invalid memory access events
@@ -527,9 +547,6 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JI
       case UC_HOOK_MEM_FETCH_PROT:    // Hook for all invalid memory access events
       case UC_HOOK_MEM_READ_PROT:    // Hook for all invalid memory access events
       case UC_HOOK_MEM_WRITE_PROT:    // Hook for all invalid memory access events
-         if (invokeEventMemCallbacks == 0) {
-            invokeEventMemCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeEventMemCallbacks", "(JIJIJ)Z");
-         }
          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_eventmem, env, 1, 0);
          break;
    }
@@ -549,21 +566,15 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JII
       case UC_HOOK_INSN:           // Hook a particular instruction
          switch (arg1) {
             case UC_X86_INS_OUT:
-               if (invokeOutCallbacks == 0) {
-                  invokeOutCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeOutCallbacks", "(JIII)V");
-               }
                err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_insn_out, env, 1, 0, arg1);
+               break;
             case UC_X86_INS_IN:
-               if (invokeInCallbacks == 0) {
-                  invokeInCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeInCallbacks", "(JII)I");
-               }
                err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_insn_in, env, 1, 0, arg1);
+               break;
             case UC_X86_INS_SYSENTER:
             case UC_X86_INS_SYSCALL:
-               if (invokeSyscallCallbacks == 0) {
-                  invokeSyscallCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeSyscallCallbacks", "(J)V");
-               }
                err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_insn_syscall, env, 1, 0, arg1);
+               break;
          }
          break;
    }
@@ -578,36 +589,108 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JII
 JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JIJJ
   (JNIEnv *env, jclass clz, jlong eng, jint type, jlong arg1, jlong arg2) {
    uc_hook hh = 0;
-   uc_err err = 0;
+   uc_err err = UC_ERR_OK;
    uint64_t begin = (uint64_t) arg1;
    uint64_t end = (uint64_t) arg2;
    switch (type) {
       case UC_HOOK_CODE:           // Hook a range of code
-         if (invokeCodeCallbacks == 0) {
-            invokeCodeCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeCodeCallbacks", "(JJI)V");
-         }
-         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookcode, env, begin, end, arg1, arg2);
+         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookcode, env, begin, end);
          break;
       case UC_HOOK_BLOCK:          // Hook basic blocks
-         if (invokeBlockCallbacks == 0) {
-            invokeBlockCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeBlockCallbacks", "(JJI)V");
-         }
-         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookblock, env, begin, end, arg1, arg2);
+         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookblock, env, begin, end);
          break;
       case UC_HOOK_MEM_READ:       // Hook all memory read events.
-         if (invokeReadCallbacks == 0) {
-            invokeReadCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeReadCallbacks", "(JJI)V");
-         }
-         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookmem, env, begin, end, arg1, arg2);
+         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookmem, env, begin, end);
          break;
       case UC_HOOK_MEM_WRITE:      // Hook all memory write events.
-         if (invokeWriteCallbacks == 0) {
-            invokeWriteCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeWriteCallbacks", "(JJIJ)V");
-         }
-         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookmem, env, begin, end, arg1, arg2);
+         err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookmem, env, begin, end);
          break;
    }
+   if (err != UC_ERR_OK) {
+     throwException(env, err);
+     return 0;
+   }
    return (jlong)hh;
+}
+
+struct new_hook {
+    uc_hook hh;
+    jobject hook;
+};
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    registerHook
+ * Signature: (JIJJLunicorn/Unicorn/NewHook;)J
+ */
+JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JIJJLunicorn_Unicorn_NewHook_2
+(JNIEnv *env, jclass clz, jlong eng, jint type, jlong arg1, jlong arg2, jobject hook) {
+    uc_hook hh = 0;
+    uc_err err = UC_ERR_OK;
+    uint64_t begin = (uint64_t) arg1;
+    uint64_t end = (uint64_t) arg2;
+    
+    jobject data = (*env)->NewGlobalRef(env, hook);
+    switch (type) {
+       case UC_HOOK_CODE:           // Hook a range of code
+          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookcode_new, data, begin, end);
+          break;
+       case UC_HOOK_BLOCK:          // Hook basic blocks
+          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookblock_new, data, begin, end);
+          break;
+       case UC_HOOK_MEM_READ:       // Hook all memory read events.
+          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookmem_new, data, begin, end);
+          break;
+       case UC_HOOK_MEM_WRITE:      // Hook all memory write events.
+          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookmem_new, data, begin, end);
+          break;
+    }
+    if (err != UC_ERR_OK) {
+      (*env)->DeleteGlobalRef(env, data);
+      throwException(env, err);
+      return 0;
+    }
+    
+    struct new_hook *nh = malloc(sizeof(struct new_hook));
+    nh->hh = hh;
+    nh->hook = data;
+    return (jlong)nh;
+}
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    registerHook
+ * Signature: (JILunicorn/Unicorn/NewHook;)J
+ */
+JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JILunicorn_Unicorn_NewHook_2
+(JNIEnv *env, jclass clz, jlong eng, jint type, jobject hook) {
+    uc_hook hh = 0;
+    uc_err err = UC_ERR_OK;
+    
+    jobject data = (*env)->NewGlobalRef(env, hook);
+    switch (type) {
+       case UC_HOOK_INTR:           // Hook all interrupt events
+          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_hookintr_new, data, 1, 0);
+          break;
+       case UC_HOOK_MEM_FETCH_UNMAPPED:    // Hook for all invalid memory access events
+       case UC_HOOK_MEM_READ_UNMAPPED:    // Hook for all invalid memory access events
+       case UC_HOOK_MEM_WRITE_UNMAPPED:    // Hook for all invalid memory access events
+       case UC_HOOK_MEM_FETCH_PROT:    // Hook for all invalid memory access events
+       case UC_HOOK_MEM_READ_PROT:    // Hook for all invalid memory access events
+       case UC_HOOK_MEM_WRITE_PROT:    // Hook for all invalid memory access events
+          err = uc_hook_add((uc_engine*)eng, &hh, (uc_hook_type)type, cb_eventmem_new, data, 1, 0);
+          break;
+    }
+    if (err != UC_ERR_OK) {
+      (*env)->DeleteGlobalRef(env, data);
+      throwException(env, err);
+      return 0;
+    }
+    
+    struct new_hook *nh = malloc(sizeof(struct new_hook));
+    nh->hh = hh;
+    nh->hook = data;
+    return (jlong)nh;
 }
 
 /*
@@ -619,9 +702,10 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_hook_1del
   (JNIEnv *env, jobject self, jlong hh) {
    uc_engine *eng = getEngine(env, self);
 
-   //**** TODO remove hook from any internal hook tables as well
-
-   uc_err err = uc_hook_del(eng, (uc_hook)hh);
+   struct new_hook *nh = (struct new_hook *) hh;
+   (*env)->DeleteGlobalRef(env, nh->hook);
+   uc_err err = uc_hook_del(eng, nh->hh);
+   free(nh);
    if (err != UC_ERR_OK) {
       throwException(env, err);
    }
@@ -715,7 +799,10 @@ JNIEXPORT jobjectArray JNICALL Java_unicorn_Unicorn_mem_1regions
       return NULL;
    }
    jobjectArray result = (*env)->NewObjectArray(env, (jsize)count, clz, NULL);
-   jmethodID cons = (*env)->GetMethodID(env, clz, "<init>", "(JJI)V");
+   static jmethodID cons = 0;
+   if(cons == 0) {
+      cons = (*env)->GetMethodID(env, clz, "<init>", "(JJI)V");
+   }
    for (i = 0; i < count; i++) {
       jobject mr = (*env)->NewObject(env, clz, cons, regions[i].begin, regions[i].end, regions[i].perms);
       (*env)->SetObjectArrayElement(env, result, (jsize)i, mr);
@@ -780,4 +867,52 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_context_1restore
    if (err != UC_ERR_OK) {
       throwException(env, err);
    }
+}
+
+static JNINativeMethod s_methods[] = {
+        {"registerHook",           "(JIJJLunicorn/Unicorn$NewHook;)J",          (void *) Java_unicorn_Unicorn_registerHook__JIJJLunicorn_Unicorn_NewHook_2 },
+        {"registerHook",           "(JILunicorn/Unicorn$NewHook;)J",            (void *) Java_unicorn_Unicorn_registerHook__JILunicorn_Unicorn_NewHook_2 }
+};
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
+    JNIEnv *env;
+    if (JNI_OK != (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION_1_6)) {
+       return JNI_ERR;
+    }
+    jclass clz = (*env)->FindClass(env, "unicorn/Unicorn");
+    if ((*env)->ExceptionCheck(env)) {
+       return JNI_ERR;
+    }
+    jclass newHookClass = (*env)->FindClass(env, "unicorn/Unicorn$NewHook");
+    if ((*env)->ExceptionCheck(env)) {
+       return JNI_ERR;
+    }
+    
+    invokeBlockCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeBlockCallbacks", "(JJI)V");
+    invokeInterruptCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeInterruptCallbacks", "(JI)V");
+    invokeCodeCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeCodeCallbacks", "(JJI)V");
+    
+    invokeEventMemCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeEventMemCallbacks", "(JIJIJ)Z");
+    invokeReadCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeReadCallbacks", "(JJI)V");
+    invokeWriteCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeWriteCallbacks", "(JJIJ)V");
+    invokeInCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeInCallbacks", "(JII)I");
+    invokeOutCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeOutCallbacks", "(JIII)V");
+    invokeSyscallCallbacks = (*env)->GetStaticMethodID(env, clz, "invokeSyscallCallbacks", "(J)V");
+    
+    onBlock = (*env)->GetMethodID(env, newHookClass, "onBlock", "(JI)V");
+    onCode = (*env)->GetMethodID(env, newHookClass, "onCode", "(JI)V");
+    onRead = (*env)->GetMethodID(env, newHookClass, "onRead", "(JI)V");
+    onWrite = (*env)->GetMethodID(env, newHookClass, "onWrite", "(JIJ)V");
+    onInterrupt = (*env)->GetMethodID(env, newHookClass, "onInterrupt", "(I)V");
+    onMemEvent = (*env)->GetMethodID(env, newHookClass, "onMemEvent", "(IJIJ)Z");
+    
+    int len = sizeof(s_methods) / sizeof(s_methods[0]);
+    if ((*env)->RegisterNatives(env, clz, s_methods, len)) {
+        return JNI_ERR;
+    }
+    
+    jclassUnicorn = (*env)->NewGlobalRef(env, clz);
+    cachedJVM = jvm;
+    
+    return JNI_VERSION_1_6;
 }

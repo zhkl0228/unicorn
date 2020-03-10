@@ -1,11 +1,11 @@
 
 .PHONY: gen_const clean
 
-JAVA_HOME := $(shell jrunscript -e 'java.lang.System.out.println(java.lang.System.getProperty("java.home"));')
+# JAVA_HOME := $(shell jrunscript -e 'java.lang.System.out.println(java.lang.System.getProperty("java.home"));')
 
-JAVA_INC := $(shell realpath $(JAVA_HOME)/../include)
+JAVA_INC := $(shell realpath $(JAVA_HOME)/include)
 
-JAVA_PLATFORM_INC := $(shell dirname `find $(JAVA_INC) -name jni_md.h`)
+JAVA_PLATFORM_INC := $(shell dirname `find "$(JAVA_INC)" -name jni_md.h`)
 
 UNICORN_INC=../../include
 
@@ -23,9 +23,7 @@ endif
 
 CC=gcc
 CFLAGS=-fPIC
-LDFLAGS=-shared -fPIC
-LIBS=-lunicorn
-LIBDIR=-L../../
+LDFLAGS=-shared -fPIC ../../libunicorn.a
 INCS=-I$(JAVA_INC) -I$(JAVA_PLATFORM_INC) -I$(UNICORN_INC)
 
 JC=javac
@@ -46,7 +44,7 @@ all: lib jar samples
 	$(CC) -c $(CFLAGS) $(INCS) $< -o $@
 
 unicorn_Unicorn.h: unicorn/Unicorn.java
-	javah unicorn.Unicorn
+	$(JAVA_HOME)/bin/javah unicorn.Unicorn
 
 unicorn_Unicorn.o: unicorn_Unicorn.c unicorn_Unicorn.h
 	$(CC) -c $(CFLAGS) $(INCS) $< -o $@

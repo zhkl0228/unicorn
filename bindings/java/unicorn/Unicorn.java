@@ -54,6 +54,68 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
          data = d;
       }
    }
+   public class UnHook {
+      private final long handle;
+      public UnHook(long handle) {
+         this.handle = handle;
+      }
+      public void unhook() {
+         hook_del(handle);
+      }
+   }
+   private class NewHook extends Tuple {
+      public NewHook(Hook f, Object d) {
+         super(f, d);
+      }
+
+      /**
+       * for UC_HOOK_BLOCK
+       */
+      void onBlock(long address, int size) {
+         BlockHook hook = (BlockHook) function;
+         hook.hook(Unicorn.this, address, size, data);
+      }
+
+      /**
+       * for UC_HOOK_CODE
+       */
+      void onCode(long address, int size) {
+         CodeHook hook = (CodeHook) function;
+         hook.hook(Unicorn.this, address, size, data);
+      }
+
+      /**
+       * for UC_HOOK_MEM_READ
+       */
+      void onRead(long address, int size) {
+         ReadHook hook = (ReadHook) function;
+         hook.hook(Unicorn.this, address, size, data);
+      }
+
+      /**
+       * for UC_HOOK_MEM_WRITE
+       */
+      void onWrite(long address, int size, long value) {
+         WriteHook hook = (WriteHook) function;
+         hook.hook(Unicorn.this, address, size, value, data);
+      }
+
+      /**
+       * for UC_HOOK_INTR
+       */
+      void onInterrupt(int intno) {
+         InterruptHook hook = (InterruptHook) function;
+         hook.hook(Unicorn.this, intno, data);
+      }
+
+      /**
+       * for UC_HOOK_MEM_*
+       */
+      boolean onMemEvent(int type, long address, int size, long value) {
+         EventMemHook hook = (EventMemHook) function;
+         return hook.hook(Unicorn.this, address, size, value, data);
+      }
+   }
 
    private ArrayList<Tuple> blockList = new ArrayList<Tuple>();
    private ArrayList<Tuple> intrList = new ArrayList<Tuple>();
@@ -538,6 +600,15 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
    private native static long registerHook(long eng, int type);
 
 /**
+ * Hook registration helper for hook types that require no additional arguments.
+ *
+ * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
+ * @param type     UC_HOOK_* hook type
+ * @return         Unicorn uch returned for registered hook function
+ */
+   private native static long registerHook(long eng, int type, NewHook hook);
+
+/**
  * Hook registration helper for hook types that require one additional argument.
  *
  * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
@@ -559,6 +630,22 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
    private native static long registerHook(long eng, int type, long arg1, long arg2);
 
 /**
+ * Hook registration helper for hook types that require two additional arguments.
+ *
+ * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
+ * @param type     UC_HOOK_* hook type
+ * @return         Unicorn uch returned for registered hook function
+ */
+   private native static long registerHook(long eng, int type, long begin, long end, NewHook hook);
+
+/**
+ * Hook registration helper for unhook.
+ *
+ * @param handle   Unicorn uch returned for registered hook function
+ */
+   private native void hook_del(long handle) throws UnicornException;
+
+/**
  * Hook registration for UC_HOOK_BLOCK hooks. The registered callback function will be
  * invoked when a basic block is entered and the address of the basic block (BB) falls in the
  * range begin <= BB <= end. For the special case in which begin > end, the callback will be
@@ -576,6 +663,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       blockList.add(new Tuple(callback, user_data));
    }
 
+   public UnHook hook_add_new(BlockHook callback, long begin, long end, Object user_data) throws UnicornException {
+      NewHook hook = new NewHook(callback, user_data);
+      long handle = registerHook(eng, UC_HOOK_BLOCK, begin, end, hook);
+      return new UnHook(handle);
+   }
+
 /**
  * Hook registration for UC_HOOK_INTR hooks. The registered callback function will be
  * invoked whenever an interrupt instruction is executed.
@@ -588,6 +681,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
          interruptHandle = registerHook(eng, UC_HOOK_INTR);
       }
       intrList.add(new Tuple(callback, user_data));
+   }
+
+   public UnHook hook_add_new(InterruptHook callback, Object user_data) throws UnicornException {
+      NewHook hook = new NewHook(callback, user_data);
+      long handle = registerHook(eng, UC_HOOK_INTR, hook);
+      return new UnHook(handle);
    }
 
 /**
@@ -607,6 +706,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       codeList.add(new Tuple(callback, user_data));
    }
 
+   public UnHook hook_add_new(CodeHook callback, long begin, long end, Object user_data) throws UnicornException {
+      NewHook hook = new NewHook(callback, user_data);
+      long handle = registerHook(eng, UC_HOOK_CODE, begin, end, hook);
+      return new UnHook(handle);
+   }
+
 /**
  * Hook registration for UC_HOOK_MEM_READ hooks. The registered callback function will be
  * invoked whenever a memory read is performed within the address range begin <= read_addr <= end. For
@@ -624,6 +729,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       readList.add(new Tuple(callback, user_data));
    }
 
+   public UnHook hook_add_new(ReadHook callback, long begin, long end, Object user_data) throws UnicornException {
+      NewHook hook = new NewHook(callback, user_data);
+      long handle = registerHook(eng, UC_HOOK_MEM_READ, begin, end, hook);
+      return new UnHook(handle);
+   }
+
 /**
  * Hook registration for UC_HOOK_MEM_WRITE hooks. The registered callback function will be
  * invoked whenever a memory write is performed within the address range begin <= write_addr <= end. For
@@ -639,6 +750,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
          writeHandle = registerHook(eng, UC_HOOK_MEM_WRITE, begin, end);
       }
       writeList.add(new Tuple(callback, user_data));
+   }
+
+   public UnHook hook_add_new(WriteHook callback, long begin, long end, Object user_data) throws UnicornException {
+      NewHook hook = new NewHook(callback, user_data);
+      long handle = registerHook(eng, UC_HOOK_MEM_WRITE, begin, end, hook);
+      return new UnHook(handle);
    }
 
 /**
@@ -683,6 +800,19 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
             flist.add(new Tuple(callback, user_data));
          }
       }
+   }
+
+   public Map<Integer, UnHook> hook_add_new(EventMemHook callback, int type, Object user_data) throws UnicornException {
+      //test all of the EventMem related bits in type
+      Map<Integer, UnHook> map = new HashMap<>(eventMemMap.size());
+      for (Integer htype : eventMemMap.keySet()) {
+         if ((type & htype) != 0) { //the 'htype' bit is set in type
+            NewHook hook = new NewHook(callback, user_data);
+            long handle = registerHook(eng, htype, hook);
+            map.put(htype, new UnHook(handle));
+         }
+      }
+      return map;
    }
 
 /**
