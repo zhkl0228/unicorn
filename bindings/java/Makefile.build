@@ -29,6 +29,7 @@ INCS=-I$(JAVA_INC) -I$(JAVA_PLATFORM_INC) -I$(UNICORN_INC)
 
 JC=javac
 CLASSPATH=./
+JFLAGS=-source 1.7 -target 1.7
 
 .SUFFIXES: .java .class
 

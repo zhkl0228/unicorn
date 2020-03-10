@@ -412,8 +412,8 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  *
  */
    protected void finalize() {
-      unicorns.remove(eng);
-      close();
+//      unicorns.remove(eng);
+//      close();
    }
 
 /**
