@@ -444,9 +444,8 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * Query internal status of engine.
  *
  * @param   type     query type. See UC_QUERY_*
- * @param   result   save the internal status queried
  *
- * @return: error code. see UC_ERR_*
+ * @return  error code. see UC_ERR_*
  * @see     unicorn.UnicornConst
  */
    public native int query(int type) throws UnicornException;
@@ -884,7 +883,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param address Base address of the memory range
  * @param size    Size of the memory block.
  * @param perms   Permissions on the memory block. A combination of UC_PROT_READ, UC_PROT_WRITE, UC_PROT_EXEC
- * @param ptr     Block of host memory backing the newly mapped memory. This block is
+ * @param block   Block of host memory backing the newly mapped memory. This block is
  *                expected to be an equal or larger size than provided, and be mapped with at
  *                least PROT_READ | PROT_WRITE. If it is not, the resulting behavior is undefined.
  */
@@ -929,7 +928,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * Free a resource allocated within Unicorn. Use for handles
  * allocated by context_alloc.
  *
- * @param Previously allocated Unicorn object handle.
+ * @param handle Previously allocated Unicorn object handle.
 */
    public native void free(long handle);
 

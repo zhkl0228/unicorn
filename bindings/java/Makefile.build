@@ -10,7 +10,7 @@ JAVA_PLATFORM_INC := $(shell dirname `find "$(JAVA_INC)" -name jni_md.h`)
 UNICORN_INC=../../include
 
 SAMPLES := $(shell ls samples/*.java)
-SRC := $(shell ls unicorn/*.java)
+SRC := $(shell ls src/main/java/unicorn/*.java)
 
 OS := $(shell uname)
 ifeq ($(OS),Darwin)
