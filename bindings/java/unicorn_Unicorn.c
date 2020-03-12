@@ -42,6 +42,7 @@ static jmethodID invokeSyscallCallbacks = 0;
 
 static jmethodID onBlock = 0;
 static jmethodID onCode = 0;
+static jmethodID onBreak = 0;
 static jmethodID onRead = 0;
 static jmethodID onWrite = 0;
 static jmethodID onInterrupt = 0;
@@ -49,6 +50,116 @@ static jmethodID onMemEvent = 0;
 
 static JavaVM* cachedJVM;
 static jclass jclassUnicorn;
+
+static jboolean fastDebug = JNI_TRUE;
+static jint singleStep = 0;
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    setFastDebug
+ * Signature: (Z)V
+ */
+JNIEXPORT void JNICALL Java_unicorn_Unicorn_setFastDebug
+(JNIEnv *env, jobject obj, jboolean _fastDebug) {
+    fastDebug = _fastDebug;
+}
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    setSingleStep
+ * Signature: (I)V
+ */
+JNIEXPORT void JNICALL Java_unicorn_Unicorn_setSingleStep
+(JNIEnv *env, jobject obj, jint _singleStep) {
+    singleStep = _singleStep;
+}
+
+struct break_point {
+    uint64_t address;
+    struct break_point *next;
+};
+
+static struct break_point *bps = NULL;
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    addBreakPoint
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_unicorn_Unicorn_addBreakPoint
+(JNIEnv *env, jobject obj, jlong address) {
+    struct break_point *last = NULL;
+    struct break_point *bp = bps;
+    while(bp != NULL) {
+        last = bp;
+        if(bp->address == address) {
+            return;
+        }
+        bp = bp->next;
+    }
+
+    struct break_point *nbp = (struct break_point *) malloc(sizeof(struct break_point));
+    nbp->address = address;
+    nbp->next = NULL;
+    if(last == NULL) {
+        bps = nbp;
+    } else {
+        last->next = nbp;
+    }
+}
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    removeBreakPoint
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_unicorn_Unicorn_removeBreakPoint
+(JNIEnv *env, jobject obj, jlong address) {
+    struct break_point *last = NULL;
+    struct break_point *bp = bps;
+    while(bp != NULL) {
+        if(bp->address == address) {
+            if(last == NULL) {
+                bps = bp->next;
+            } else {
+                last->next = bp->next;
+            }
+            free(bp);
+            return;
+        }
+        last = bp;
+        bp = bp->next;
+    }
+}
+
+static bool hitBreakPoint(uint64_t address) {
+    struct break_point *bp = bps;
+    while(bp != NULL) {
+        if(bp->address == address) {
+            return true;
+        }
+        bp = bp->next;
+    }
+    return false;
+}
+
+static void cb_debugger(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
+   JNIEnv *env;
+    
+    if(singleStep >= 0) {
+        singleStep--;
+    }
+    
+    if(singleStep == 0 || hitBreakPoint(address)) {
+        (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+        (*env)->CallVoidMethod(env, user_data, onBreak, (jlong)address, (int)size);
+        (*cachedJVM)->DetachCurrentThread(cachedJVM);
+    } else if(fastDebug != JNI_TRUE) {
+        (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
+        (*env)->CallVoidMethod(env, user_data, onCode, (jlong)address, (int)size);
+        (*cachedJVM)->DetachCurrentThread(cachedJVM);
+    }
+}
 
 static void cb_hookcode_new(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
    JNIEnv *env;
@@ -377,6 +488,14 @@ JNIEXPORT jboolean JNICALL Java_unicorn_Unicorn_arch_1supported
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_close
   (JNIEnv *env, jobject self) {
+   struct break_point *bp = bps;
+   while(bp != NULL) {
+      struct break_point *tmp = bp;
+      bp = bp->next;
+      free(tmp);
+   }
+   bps = NULL;
+
    uc_engine *eng = getEngine(env, self);
    uc_err err = uc_close(eng);
    if (err != UC_ERR_OK) {
@@ -659,6 +778,31 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JIJJLunicorn_Unicorn_
 
 /*
  * Class:     unicorn_Unicorn
+ * Method:    registerDebugger
+ * Signature: (JJJLunicorn/Unicorn/NewHook;)J
+ */
+JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerDebugger
+(JNIEnv *env, jclass clz, jlong eng, jlong arg1, jlong arg2, jobject hook) {
+    uc_hook hh = 0;
+    uint64_t begin = (uint64_t) arg1;
+    uint64_t end = (uint64_t) arg2;
+    
+    jobject data = (*env)->NewGlobalRef(env, hook);
+    uc_err err = uc_hook_add((uc_engine*)eng, &hh, UC_HOOK_CODE, cb_debugger, data, begin, end);
+    if (err != UC_ERR_OK) {
+      (*env)->DeleteGlobalRef(env, data);
+      throwException(env, err);
+      return 0;
+    }
+    
+    struct new_hook *nh = malloc(sizeof(struct new_hook));
+    nh->hh = hh;
+    nh->hook = data;
+    return (jlong)nh;
+}
+
+/*
+ * Class:     unicorn_Unicorn
  * Method:    registerHook
  * Signature: (JILunicorn/Unicorn/NewHook;)J
  */
@@ -901,6 +1045,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
     
     onBlock = (*env)->GetMethodID(env, newHookClass, "onBlock", "(JI)V");
     onCode = (*env)->GetMethodID(env, newHookClass, "onCode", "(JI)V");
+    onBreak = (*env)->GetMethodID(env, newHookClass, "onBreak", "(JI)V");
     onRead = (*env)->GetMethodID(env, newHookClass, "onRead", "(JI)V");
     onWrite = (*env)->GetMethodID(env, newHookClass, "onWrite", "(JIJ)V");
     onInterrupt = (*env)->GetMethodID(env, newHookClass, "onInterrupt", "(I)V");

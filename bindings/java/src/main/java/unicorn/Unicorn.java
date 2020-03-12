@@ -46,6 +46,8 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
    private long outHandle = 0;
    private long syscallHandle = 0;
 
+   private final List<UnHook> newHookList = new ArrayList<>();
+
    private class Tuple {
       public Hook function;
       public Object data;
@@ -58,9 +60,18 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       private final long handle;
       public UnHook(long handle) {
          this.handle = handle;
+         newHookList.add(this);
       }
       public void unhook() {
-         hook_del(handle);
+         unhookInternal();
+         newHookList.remove(this);
+      }
+      private boolean unhooked;
+      private void unhookInternal() {
+         if (!unhooked) {
+            hook_del(handle);
+         }
+         unhooked = true;
       }
    }
    private class NewHook extends Tuple {
@@ -82,6 +93,14 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       void onCode(long address, int size) {
          CodeHook hook = (CodeHook) function;
          hook.hook(Unicorn.this, address, size, data);
+      }
+
+      /**
+       * on breakpoint hit
+       */
+      void onBreak(long address, int size) {
+         DebugHook hook = (DebugHook) function;
+         hook.onBreak(Unicorn.this, address, size, data);
       }
 
       /**
@@ -434,11 +453,18 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  */
    public native static boolean arch_supported(int arch);
 
+   public void closeAll() throws UnicornException {
+      for (UnHook unHook : newHookList) {
+         unHook.unhookInternal();
+      }
+      close();
+   }
+
 /**
  * Close the underlying uc_engine* eng associated with this Unicorn object
  *
  */
-   public native void close() throws UnicornException;
+   private native void close() throws UnicornException;
 
 /**
  * Query internal status of engine.
@@ -637,6 +663,13 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  */
    private native static long registerHook(long eng, int type, long begin, long end, NewHook hook);
 
+   private native static long registerDebugger(long eng, long begin, long end, NewHook hook);
+
+   public native void setFastDebug(boolean fastDebug);
+   public native void setSingleStep(int singleStep);
+   public native void addBreakPoint(long address);
+   public native void removeBreakPoint(long address);
+
 /**
  * Hook registration helper for unhook.
  *
@@ -708,6 +741,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
    public UnHook hook_add_new(CodeHook callback, long begin, long end, Object user_data) throws UnicornException {
       NewHook hook = new NewHook(callback, user_data);
       long handle = registerHook(eng, UC_HOOK_CODE, begin, end, hook);
+      return new UnHook(handle);
+   }
+
+   public UnHook debugger_add(DebugHook callback, long begin, long end, Object user_data) throws UnicornException {
+      NewHook hook = new NewHook(callback, user_data);
+      long handle = registerDebugger(eng, begin, end, hook);
       return new UnHook(handle);
    }
 
