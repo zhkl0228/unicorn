@@ -167,7 +167,7 @@ public class Sample_m68k {
        System.out.print(String.format(">>> PC = 0x%x\n", pc.intValue()));
        System.out.print(String.format(">>> SR = 0x%x\n", sr.intValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    public static void main(String args[])

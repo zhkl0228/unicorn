@@ -229,7 +229,7 @@ public class Sample_x86 {
         } catch (UnicornException ex) {
            System.out.printf(">>> Failed to read 4 bytes from [0x%x]\n", ADDRESS);
        }
-       uc.close();
+       uc.closeAll();
    }
 
    static void test_i386_inout()
@@ -275,7 +275,7 @@ public class Sample_x86 {
        System.out.printf(">>> EAX = 0x%x\n", r_eax.intValue());
        System.out.printf(">>> ECX = 0x%x\n", r_ecx.intValue());
    
-       u.close();
+       u.closeAll();
    }
 
    static void test_i386_jump()
@@ -303,7 +303,7 @@ public class Sample_x86 {
    
        System.out.print(">>> Emulation done. Below is the CPU context\n");
    
-       u.close();
+       u.closeAll();
    }
 
    // emulate code that loop forever
@@ -340,7 +340,7 @@ public class Sample_x86 {
        System.out.printf(">>> ECX = 0x%x\n", r_ecx.intValue());
        System.out.printf(">>> EDX = 0x%x\n", r_edx.intValue());
    
-       u.close();
+       u.closeAll();
    }
    
    // emulate code that read invalid memory
@@ -387,7 +387,7 @@ public class Sample_x86 {
        System.out.printf(">>> ECX = 0x%x\n", r_ecx.intValue());
        System.out.printf(">>> EDX = 0x%x\n", r_edx.intValue());
    
-       u.close();
+       u.closeAll();
    }
    
    // emulate code that read invalid memory
@@ -447,7 +447,7 @@ public class Sample_x86 {
            System.out.printf(">>> Failed to read 4 bytes from [0x%x]\n", 0xffffffaa);
        }
    
-       u.close();
+       u.closeAll();
    }
 
    // emulate code that jump to invalid memory
@@ -493,7 +493,7 @@ public class Sample_x86 {
        System.out.printf(">>> ECX = 0x%x\n", r_ecx.intValue());
        System.out.printf(">>> EDX = 0x%x\n", r_edx.intValue());
    
-       u.close();
+       u.closeAll();
    }
 
    static void test_x86_64()
@@ -593,7 +593,7 @@ public class Sample_x86 {
        System.out.printf(">>> R14 = 0x%x\n", r_r14.longValue());
        System.out.printf(">>> R15 = 0x%x\n", r_r15.longValue());
    
-       u.close();
+       u.closeAll();
    }
 
    static void test_x86_16()
@@ -629,7 +629,7 @@ public class Sample_x86 {
        byte[] tmp = u.mem_read(11, 1);
        System.out.printf(">>> Read 1 bytes from [0x%x] = 0x%x\n", 11, toInt(tmp));
 
-       u.close();
+       u.closeAll();
    }
 
    public static void main(String args[])

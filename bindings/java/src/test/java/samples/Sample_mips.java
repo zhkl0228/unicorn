@@ -102,7 +102,7 @@ public class Sample_mips {
        r1 = (Long)u.reg_read(Unicorn.UC_MIPS_REG_1);
        System.out.print(String.format(">>> R1 = 0x%x\n", r1.intValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    static void test_mips_el()
@@ -140,7 +140,7 @@ public class Sample_mips {
        r1 = (Long)u.reg_read(Unicorn.UC_MIPS_REG_1);
        System.out.print(String.format(">>> R1 = 0x%x\n", r1.intValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    public static void main(String args[])

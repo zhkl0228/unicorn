@@ -105,7 +105,7 @@ public class Sample_arm64 {
        x11 = (Long)u.reg_read(Unicorn.UC_ARM64_REG_X11);
        System.out.print(String.format(">>> X11 = 0x%x\n", x11.longValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    public static void main(String args[])

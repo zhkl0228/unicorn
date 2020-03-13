@@ -143,7 +143,7 @@ public class Shellcode {
    
        System.out.print("\n>>> Emulation done.\n");
    
-       u.close();
+       u.closeAll();
    }
    
    public static void main(String args[])

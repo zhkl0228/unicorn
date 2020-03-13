@@ -79,7 +79,7 @@ public class Sample_arm {
        System.out.print(String.format(">>> R0 = 0x%x\n", r0.intValue()));
        System.out.print(String.format(">>> R1 = 0x%x\n", r1.intValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    static void test_thumb()
@@ -117,7 +117,7 @@ public class Sample_arm {
        sp = (Long)u.reg_read(Unicorn.UC_ARM_REG_SP);
        System.out.print(String.format(">>> SP = 0x%x\n", sp.intValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    public static void main(String args[])

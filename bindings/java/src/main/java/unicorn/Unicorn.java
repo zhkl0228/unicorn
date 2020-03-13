@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 package unicorn;
 
+import java.io.IOException;
 import java.util.*;
 
 public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, SparcConst, MipsConst, X86Const {
@@ -154,7 +155,11 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
 
    //required to load native method implementations
    static {
-      System.loadLibrary("unicorn_java");    //loads unicorn.dll  or libunicorn.so
+      try {
+         org.scijava.nativelib.NativeLoader.loadLibrary("unicorn_java");    //loads unicorn.dll  or libunicorn.so
+      } catch (IOException e) {
+         throw new IllegalStateException(e);
+      }
       eventMemMap.put(UC_HOOK_MEM_READ_UNMAPPED, UC_MEM_READ_UNMAPPED);
       eventMemMap.put(UC_HOOK_MEM_WRITE_UNMAPPED, UC_MEM_WRITE_UNMAPPED);
       eventMemMap.put(UC_HOOK_MEM_FETCH_UNMAPPED, UC_MEM_FETCH_UNMAPPED);

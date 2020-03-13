@@ -66,7 +66,7 @@ public class Sample_x86_mmr {
        System.out.printf(">>> GDTR.base = 0x%x\n", gdtr2.base);
        System.out.printf(">>> GDTR.limit = 0x%x\n", gdtr2.limit);
    
-       uc.close();
+       uc.closeAll();
    }
 
    public static void main(String args[])

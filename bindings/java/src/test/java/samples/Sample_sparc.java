@@ -105,7 +105,7 @@ public class Sample_sparc {
        g3 = (Long)u.reg_read(Unicorn.UC_SPARC_REG_G3);
        System.out.print(String.format(">>> G3 = 0x%x\n", g3.intValue()));
    
-       u.close();
+       u.closeAll();
    }
    
    public static void main(String args[])
