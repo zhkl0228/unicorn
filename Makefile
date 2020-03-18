@@ -26,11 +26,11 @@ ifneq (,$(findstring x86,$(UNICORN_ARCHS)))
 endif
 ifneq (,$(findstring arm,$(UNICORN_ARCHS)))
 	UC_TARGET_OBJ += $(call GENOBJ,arm-softmmu)
-	UC_TARGET_OBJ += $(call GENOBJ,armeb-softmmu)
+	# UC_TARGET_OBJ += $(call GENOBJ,armeb-softmmu)
 	UNICORN_CFLAGS += -DUNICORN_HAS_ARM
-	UNICORN_CFLAGS += -DUNICORN_HAS_ARMEB
+	# UNICORN_CFLAGS += -DUNICORN_HAS_ARMEB
 	UNICORN_TARGETS += arm-softmmu,
-	UNICORN_TARGETS += armeb-softmmu,
+	# UNICORN_TARGETS += armeb-softmmu,
 endif
 ifneq (,$(findstring m68k,$(UNICORN_ARCHS)))
 	UC_TARGET_OBJ += $(call GENOBJ,m68k-softmmu)
@@ -39,11 +39,11 @@ ifneq (,$(findstring m68k,$(UNICORN_ARCHS)))
 endif
 ifneq (,$(findstring aarch64,$(UNICORN_ARCHS)))
 	UC_TARGET_OBJ += $(call GENOBJ,aarch64-softmmu)
-	UC_TARGET_OBJ += $(call GENOBJ,aarch64eb-softmmu)
+	# UC_TARGET_OBJ += $(call GENOBJ,aarch64eb-softmmu)
 	UNICORN_CFLAGS += -DUNICORN_HAS_ARM64
-	UNICORN_CFLAGS += -DUNICORN_HAS_ARM64EB
+	# UNICORN_CFLAGS += -DUNICORN_HAS_ARM64EB
 	UNICORN_TARGETS += aarch64-softmmu,
-	UNICORN_TARGETS += aarch64eb-softmmu,
+	# UNICORN_TARGETS += aarch64eb-softmmu,
 endif
 ifneq (,$(findstring mips,$(UNICORN_ARCHS)))
 	UC_TARGET_OBJ += $(call GENOBJ,mips-softmmu)
