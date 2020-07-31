@@ -132,7 +132,7 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_removeBreakPoint
     }
 }
 
-static bool hitBreakPoint(uint64_t address) {
+static inline bool hitBreakPoint(uint64_t address) {
     struct break_point *bp = bps;
     while(bp != NULL) {
         if(bp->address == address) {
@@ -146,11 +146,7 @@ static bool hitBreakPoint(uint64_t address) {
 static void cb_debugger(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
    JNIEnv *env;
     
-    if(singleStep >= 0) {
-        singleStep--;
-    }
-    
-    if(singleStep == 0 || hitBreakPoint(address)) {
+    if((singleStep > 0 && --singleStep == 0) || hitBreakPoint(address)) {
         (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
         (*env)->CallVoidMethod(env, user_data, onBreak, (jlong)address, (int)size);
         (*cachedJVM)->DetachCurrentThread(cachedJVM);
