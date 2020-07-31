@@ -158,7 +158,7 @@ static inline bool hitBreakPoint(uint64_t address) {
 static void cb_debugger(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
     JNIEnv *env;
     
-    if((singleStep > 0 && --singleStep == 0) || kh_n_buckets(bps_hash) >= 5 ? kh_get(64, bps_hash, address) != kh_end(bps_hash) : hitBreakPoint(address)) {
+    if((singleStep > 0 && --singleStep == 0) || (kh_n_buckets(bps_hash) >= 5 ? kh_get(64, bps_hash, address) != kh_end(bps_hash) : hitBreakPoint(address))) {
         (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
         (*env)->CallVoidMethod(env, user_data, onBreak, (jlong)address, (int)size);
         (*cachedJVM)->DetachCurrentThread(cachedJVM);
