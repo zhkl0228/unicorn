@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "unicorn/platform.h"
 #include <stdlib.h>
 #include <string.h>
+#include "khash.h"
 
 #include <unicorn/unicorn.h>
 #include <unicorn/x86.h>
@@ -81,6 +82,10 @@ struct break_point {
 
 static struct break_point *bps = NULL;
 
+KHASH_MAP_INIT_INT64(64, char)
+khash_t(64) *bps_hash = NULL;
+
+
 /*
  * Class:     unicorn_Unicorn
  * Method:    addBreakPoint
@@ -88,6 +93,10 @@ static struct break_point *bps = NULL;
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_addBreakPoint
 (JNIEnv *env, jobject obj, jlong address) {
+    int ret;
+    khiter_t k = kh_put(64, bps_hash, address, &ret);
+    kh_value(bps_hash, k) = 1;
+
     struct break_point *last = NULL;
     struct break_point *bp = bps;
     while(bp != NULL) {
@@ -115,6 +124,9 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_addBreakPoint
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_removeBreakPoint
 (JNIEnv *env, jobject obj, jlong address) {
+    khiter_t k = kh_get(64, bps_hash, address);
+    kh_del(64, bps_hash, k);
+
     struct break_point *last = NULL;
     struct break_point *bp = bps;
     while(bp != NULL) {
@@ -133,6 +145,9 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_removeBreakPoint
 }
 
 static inline bool hitBreakPoint(uint64_t address) {
+    if(kh_n_buckets(bps_hash) >= 5) {
+        return kh_get(64, bps_hash, address) != kh_end(bps_hash);
+    }
     struct break_point *bp = bps;
     while(bp != NULL) {
         if(bp->address == address) {
@@ -144,7 +159,7 @@ static inline bool hitBreakPoint(uint64_t address) {
 }
 
 static void cb_debugger(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
-   JNIEnv *env;
+    JNIEnv *env;
     
     if((singleStep > 0 && --singleStep == 0) || hitBreakPoint(address)) {
         (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
@@ -454,6 +469,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_open
    if (err != UC_ERR_OK) {
       throwException(env, err);
    }
+   bps_hash = kh_init(64);
    return (jlong)eng;
 }
 
@@ -484,6 +500,11 @@ JNIEXPORT jboolean JNICALL Java_unicorn_Unicorn_arch_1supported
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_close
   (JNIEnv *env, jobject self) {
+   if(bps_hash != NULL) {
+      kh_destroy(64, bps_hash);
+   }
+   bps_hash = NULL;
+
    struct break_point *bp = bps;
    while(bp != NULL) {
       struct break_point *tmp = bp;
