@@ -75,16 +75,24 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_setSingleStep
     singleStep = _singleStep;
 }
 
-struct break_point {
-    uint64_t address;
-    struct break_point *next;
-};
-
-static struct break_point *bps = NULL;
+#define SEARCH_BPS_COUNT 8
+static uint64_t bps[SEARCH_BPS_COUNT];
 
 KHASH_MAP_INIT_INT64(64, char)
-khash_t(64) *bps_hash = NULL;
+khash_t(64) *bps_map = NULL;
 
+static void update_bps() {
+  int n = kh_size(bps_map);
+  if(n <= SEARCH_BPS_COUNT) {
+    int idx = 0;
+    for (khiter_t k = kh_begin(bps_map); k < kh_end(bps_map); k++) {
+      if(kh_exist(bps_map, k)) {
+        uint64_t key = kh_key(bps_map, k);
+        bps[idx++] = key;
+      }
+    }
+  }
+}
 
 /*
  * Class:     unicorn_Unicorn
@@ -94,27 +102,9 @@ khash_t(64) *bps_hash = NULL;
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_addBreakPoint
 (JNIEnv *env, jobject obj, jlong address) {
     int ret;
-    khiter_t k = kh_put(64, bps_hash, address, &ret);
-    kh_value(bps_hash, k) = 1;
-
-    struct break_point *last = NULL;
-    struct break_point *bp = bps;
-    while(bp != NULL) {
-        last = bp;
-        if(bp->address == address) {
-            return;
-        }
-        bp = bp->next;
-    }
-
-    struct break_point *nbp = (struct break_point *) malloc(sizeof(struct break_point));
-    nbp->address = address;
-    nbp->next = NULL;
-    if(last == NULL) {
-        bps = nbp;
-    } else {
-        last->next = nbp;
-    }
+    khiter_t k = kh_put(64, bps_map, address, &ret);
+    kh_value(bps_map, k) = 1;
+    update_bps();
 }
 
 /*
@@ -124,41 +114,25 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_addBreakPoint
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_removeBreakPoint
 (JNIEnv *env, jobject obj, jlong address) {
-    khiter_t k = kh_get(64, bps_hash, address);
-    kh_del(64, bps_hash, k);
-
-    struct break_point *last = NULL;
-    struct break_point *bp = bps;
-    while(bp != NULL) {
-        if(bp->address == address) {
-            if(last == NULL) {
-                bps = bp->next;
-            } else {
-                last->next = bp->next;
-            }
-            free(bp);
-            return;
-        }
-        last = bp;
-        bp = bp->next;
-    }
+    khiter_t k = kh_get(64, bps_map, address);
+    kh_del(64, bps_map, k);
+    update_bps();
 }
 
-static inline bool hitBreakPoint(uint64_t address) {
-    struct break_point *bp = bps;
-    while(bp != NULL) {
-        if(bp->address == address) {
+static inline bool hitBreakPoint(int n, uint64_t address) {
+    for(int i = 0; i < n; i++) {
+        if(bps[i] == address) {
             return true;
         }
-        bp = bp->next;
     }
     return false;
 }
 
 static void cb_debugger(uc_engine *eng, uint64_t address, uint32_t size, void *user_data) {
     JNIEnv *env;
+    int n;
     
-    if((singleStep > 0 && --singleStep == 0) || (kh_n_buckets(bps_hash) >= 5 ? kh_get(64, bps_hash, address) != kh_end(bps_hash) : hitBreakPoint(address))) {
+    if((singleStep > 0 && --singleStep == 0) || ((n = kh_size(bps_map)) > 0 && (n > SEARCH_BPS_COUNT ? (kh_get(64, bps_map, address) != kh_end(bps_map)) : hitBreakPoint(n, address)))) {
         (*cachedJVM)->AttachCurrentThread(cachedJVM, (void **)&env, NULL);
         (*env)->CallVoidMethod(env, user_data, onBreak, (jlong)address, (int)size);
         (*cachedJVM)->DetachCurrentThread(cachedJVM);
@@ -466,7 +440,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_open
    if (err != UC_ERR_OK) {
       throwException(env, err);
    }
-   bps_hash = kh_init(64);
+   bps_map = kh_init(64);
    return (jlong)eng;
 }
 
@@ -497,18 +471,10 @@ JNIEXPORT jboolean JNICALL Java_unicorn_Unicorn_arch_1supported
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_close
   (JNIEnv *env, jobject self) {
-   if(bps_hash != NULL) {
-      kh_destroy(64, bps_hash);
+   if(bps_map != NULL) {
+      kh_destroy(64, bps_map);
    }
-   bps_hash = NULL;
-
-   struct break_point *bp = bps;
-   while(bp != NULL) {
-      struct break_point *tmp = bp;
-      bp = bp->next;
-      free(tmp);
-   }
-   bps = NULL;
+   bps_map = NULL;
 
    uc_engine *eng = getEngine(env, self);
    uc_err err = uc_close(eng);
