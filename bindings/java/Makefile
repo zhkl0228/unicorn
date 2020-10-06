@@ -27,3 +27,4 @@ clean:
 	rm -f *.so
 	rm -f *.dylib
 	rm -f *.dll
+	rm -f unicorn_Unicorn.o

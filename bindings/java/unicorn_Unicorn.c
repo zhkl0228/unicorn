@@ -440,6 +440,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_open
    if (err != UC_ERR_OK) {
       throwException(env, err);
    }
+   uc_set_tb_flush_on_finish(eng, false);
    bps_map = kh_init(64);
    return (jlong)eng;
 }

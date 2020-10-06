@@ -150,6 +150,7 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
             return UC_ERR_NOMEM;
         }
 
+        uc->tb_flush_on_finish = true;
         uc->errnum = UC_ERR_OK;
         uc->arch = arch;
         uc->mode = mode;
@@ -1332,3 +1333,11 @@ uc_err uc_context_restore(uc_engine *uc, uc_context *context)
     memcpy(uc->cpu->env_ptr, _context->data, _context->size);
     return UC_ERR_OK;
 }
+
+UNICORN_EXPORT
+uc_err uc_set_tb_flush_on_finish(uc_engine *uc, bool flag)
+{
+   uc->tb_flush_on_finish = flag;
+   return UC_ERR_OK;
+}
+

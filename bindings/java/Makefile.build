@@ -19,7 +19,7 @@ else
 endif
 
 CC=clang
-CFLAGS=-fPIC
+CFLAGS=-fPIC -mmacosx-version-min=10.5
 LDFLAGS=-shared -fPIC -mmacosx-version-min=10.5
 LIBS=../../libunicorn.a
 INCS=-I$(JAVA_INC) -I$(JAVA_PLATFORM_INC) -I$(UNICORN_INC)

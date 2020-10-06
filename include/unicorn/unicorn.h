@@ -758,6 +758,9 @@ uc_err uc_context_restore(uc_engine *uc, uc_context *context);
 UNICORN_EXPORT
 size_t uc_context_size(uc_engine *uc);
 
+UNICORN_EXPORT
+uc_err uc_set_tb_flush_on_finish(uc_engine *uc, bool flag);
+
 #ifdef __cplusplus
 }
 #endif
