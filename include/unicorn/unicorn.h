@@ -164,7 +164,6 @@ typedef enum uc_err {
     UC_ERR_HOOK_EXIST,  // hook for this event already existed
     UC_ERR_RESOURCE,    // Insufficient resource: uc_emu_start()
     UC_ERR_EXCEPTION, // Unhandled CPU exception
-    UC_ERR_TIMEOUT // Emulation timed out
 } uc_err;
 
 
@@ -330,8 +329,9 @@ typedef struct uc_mem_region {
 typedef enum uc_query_type {
     // Dynamically query current hardware mode.
     UC_QUERY_MODE = 1,
-    UC_QUERY_PAGE_SIZE,
-    UC_QUERY_ARCH,
+    UC_QUERY_PAGE_SIZE, // query pagesize of engine
+    UC_QUERY_ARCH,  // query architecture of engine (for ARM to query Thumb mode)
+    UC_QUERY_TIMEOUT,  // query if emulation stops due to timeout (indicated if result = True)
 } uc_query_type;
 
 // Opaque storage for CPU context, used with uc_context_*()
@@ -707,10 +707,12 @@ UNICORN_EXPORT
 uc_err uc_context_alloc(uc_engine *uc, uc_context **context);
 
 /*
- Free the memory allocated by uc_context_alloc & uc_mem_regions.
+ Free the memory allocated by uc_mem_regions.
+ WARNING: After Unicorn 1.0.1rc5, the memory allocated by uc_context_alloc should
+ be free-ed by uc_context_free(). Calling uc_free() may still work, but the result
+ is **undefined**.
 
- @mem: memory allocated by uc_context_alloc (returned in *context), or
-       by uc_mem_regions (returned in *regions)
+ @mem: memory allocated by uc_mem_regions (returned in *regions).
 
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
@@ -738,7 +740,7 @@ uc_err uc_context_save(uc_engine *uc, uc_context *context);
  state saved by uc_context_save().
 
  @uc: handle returned by uc_open()
- @buffer: handle returned by uc_context_alloc that has been used with uc_context_save
+ @context: handle returned by uc_context_alloc that has been used with uc_context_save
 
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
@@ -760,6 +762,17 @@ size_t uc_context_size(uc_engine *uc);
 
 UNICORN_EXPORT
 uc_err uc_set_tb_flush_on_finish(uc_engine *uc, bool flag);
+
+/*
+  Free the context allocated by uc_context_alloc().
+
+  @context: handle returned by uc_context_alloc()
+
+  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
+   for detailed error).
+*/
+UNICORN_EXPORT
+uc_err uc_context_free(uc_context *context);
 
 #ifdef __cplusplus
 }
