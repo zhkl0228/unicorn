@@ -441,7 +441,6 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_open
       throwException(env, err);
    }
    uc_set_tb_flush_on_finish(eng, false);
-   bps_map = kh_init(64);
    return (jlong)eng;
 }
 
@@ -472,11 +471,6 @@ JNIEXPORT jboolean JNICALL Java_unicorn_Unicorn_arch_1supported
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_close
   (JNIEnv *env, jobject self) {
-   if(bps_map != NULL) {
-      kh_destroy(64, bps_map);
-   }
-   bps_map = NULL;
-
    uc_engine *eng = getEngine(env, self);
    uc_err err = uc_close(eng);
    if (err != UC_ERR_OK) {
@@ -1039,6 +1033,15 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
     
     jclassUnicorn = (*env)->NewGlobalRef(env, clz);
     cachedJVM = jvm;
+    bps_map = kh_init(64);
     
     return JNI_VERSION_1_6;
 }
+
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *jvm, void *reserved) {
+    if(bps_map != NULL) {
+       kh_destroy(64, bps_map);
+    }
+    bps_map = NULL;
+}
+
