@@ -344,7 +344,22 @@ static inline QEMU_UNUSED_FUNC void map_exec(void *addr, long size)
     end &= ~(page_size - 1);
 
     mprotect((void *)start, end - start,
-             PROT_READ | PROT_WRITE | PROT_EXEC);
+             PROT_READ | PROT_EXEC);
+}
+static inline QEMU_UNUSED_FUNC void map_writable(void *addr, long size)
+{
+    unsigned long start, end, page_size;
+
+    page_size = getpagesize();
+    start = (unsigned long)addr;
+    start &= ~(page_size - 1);
+
+    end = (unsigned long)addr + size;
+    end += page_size - 1;
+    end &= ~(page_size - 1);
+
+    mprotect((void *)start, end - start,
+                       PROT_READ | PROT_WRITE);
 }
 #endif
 
@@ -730,7 +745,7 @@ static inline void *alloc_code_gen_buffer(struct uc_struct *uc)
     }
 #endif
 
-    map_exec(buf, tcg_ctx->code_gen_buffer_size);
+    map_writable(buf, tcg_ctx->code_gen_buffer_size);
     return buf;
 }
 #endif /* USE_STATIC_CODE_GEN_BUFFER, USE_MMAP */
@@ -1135,6 +1150,7 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
     int code_gen_size;
     int ret;
 
+    map_writable(tcg_ctx->code_gen_buffer, tcg_ctx->code_gen_buffer_size);
     phys_pc = get_page_addr_code(env, pc);
     tb = tb_alloc(env->uc, pc);
     if (!tb) {
@@ -1166,6 +1182,8 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
         }
     }
     tb_link_page(cpu->uc, tb, phys_pc, phys_page2);
+
+    map_exec(tcg_ctx->code_gen_buffer, tcg_ctx->code_gen_buffer_size);
     return tb;
 }
 

@@ -2,6 +2,7 @@
 /* By Nguyen Anh Quynh, 2015 */
 
 /* Sample code to demonstrate how to emulate ARM code */
+package samples;
 
 import unicorn.*;
 

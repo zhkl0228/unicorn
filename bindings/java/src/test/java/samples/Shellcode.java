@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 /* By Nguyen Anh Quynh & Dang Hoang Vu, 2015 */
 
 /* Sample code to trace code with Linux code with syscall */
+package samples;
 
 import unicorn.*;
 import java.math.*;

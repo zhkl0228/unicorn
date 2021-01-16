@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 /* By Nguyen Anh Quynh, 2015 */
 
 /* Sample code to demonstrate how to emulate ARM64 code */
+package samples;
 
 import unicorn.*;
 

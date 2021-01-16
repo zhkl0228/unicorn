@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 /* Sample code to demonstrate how to register read/write API */
+package samples;
 
 import unicorn.*;
 

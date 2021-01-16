@@ -19,6 +19,7 @@
 
 /* Modified for Unicorn Engine by Nguyen Anh Quynh, 2015 */
 
+#include <sys/mman.h>
 #include "tcg.h"
 #include "sysemu/sysemu.h"
 
@@ -44,6 +45,37 @@ void cpu_resume_from_signal(CPUState *cpu, void *puc)
     /* XXX: restore cpu registers saved in host registers */
     cpu->exception_index = -1;
     siglongjmp(cpu->jmp_env, 1);
+}
+
+static inline QEMU_UNUSED_FUNC void map_exec(void *addr, long size)
+{
+    unsigned long start, end, page_size;
+
+    page_size = getpagesize();
+    start = (unsigned long)addr;
+    start &= ~(page_size - 1);
+
+    end = (unsigned long)addr + size;
+    end += page_size - 1;
+    end &= ~(page_size - 1);
+
+    mprotect((void *)start, end - start,
+             PROT_READ | PROT_EXEC);
+}
+static inline QEMU_UNUSED_FUNC void map_writable(void *addr, long size)
+{
+    unsigned long start, end, page_size;
+
+    page_size = getpagesize();
+    start = (unsigned long)addr;
+    start &= ~(page_size - 1);
+
+    end = (unsigned long)addr + size;
+    end += page_size - 1;
+    end &= ~(page_size - 1);
+
+    mprotect((void *)start, end - start,
+             PROT_READ | PROT_WRITE);
 }
 
 /* main execution loop */
@@ -242,8 +274,10 @@ int cpu_exec(struct uc_struct *uc, CPUArchState *env)   // qq
                    spans two pages, we cannot safely do a direct
                    jump. */
                 if (next_tb != 0 && tb->page_addr[1] == -1) {
+                    map_writable(tcg_ctx->code_gen_buffer, tcg_ctx->code_gen_buffer_size);
                     tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
                             next_tb & TB_EXIT_MASK, tb);
+                    map_exec(tcg_ctx->code_gen_buffer, tcg_ctx->code_gen_buffer_size);
                 }
 
                 /* cpu_interrupt might be called while translating the
