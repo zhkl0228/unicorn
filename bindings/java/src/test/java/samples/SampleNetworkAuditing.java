@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
   Unicorn sample for auditing network connection and file handling in shellcode.
   Nguyen Tan Cong <shenlongbk@gmail.com>
 */
+package samples;
 
 import unicorn.*;
 import java.util.*;
