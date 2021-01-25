@@ -68,7 +68,7 @@ public class Sample_arm64 extends TestCase {
       }
    }
    
-   static void test_arm64()
+   private static void _test_arm64()
    {
    
        Long x11 = new Long(0x1234);     // X11 register
@@ -116,6 +116,6 @@ public class Sample_arm64 extends TestCase {
    
    public static void main(String args[])
    {
-       test_arm64();
+       _test_arm64();
    }
 }

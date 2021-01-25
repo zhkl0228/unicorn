@@ -39,7 +39,7 @@ public class Sample_arm extends TestCase {
       }
    }
    
-   static void test_arm()
+   private static void _test_arm()
    {
    
        Long r0 = new Long(0x1234); // R0 register
@@ -84,7 +84,7 @@ public class Sample_arm extends TestCase {
        u.closeAll();
    }
    
-   static void test_thumb()
+   private static void _test_thumb()
    {
    
        Long sp = new Long(0x1234); // R0 register
@@ -128,9 +128,9 @@ public class Sample_arm extends TestCase {
    
    public static void main(String args[])
    {
-       test_arm();
+       _test_arm();
        System.out.print("==========================\n");
-       test_thumb();   
+       _test_thumb();
    }
 
 }
