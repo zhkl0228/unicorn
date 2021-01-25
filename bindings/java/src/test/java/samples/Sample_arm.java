@@ -4,9 +4,10 @@
 /* Sample code to demonstrate how to emulate ARM code */
 package samples;
 
+import junit.framework.TestCase;
 import unicorn.*;
 
-public class Sample_arm {
+public class Sample_arm extends TestCase {
 
    // code to be emulated
    public static final byte[] ARM_CODE = {55,0,(byte)0xa0,(byte)0xe3,3,16,66,(byte)0xe0}; // mov r0, #0x37; sub r1, r2, r3
@@ -119,6 +120,10 @@ public class Sample_arm {
        System.out.print(String.format(">>> SP = 0x%x\n", sp.intValue()));
    
        u.closeAll();
+   }
+
+   public void test() {
+       main(null);
    }
    
    public static void main(String args[])

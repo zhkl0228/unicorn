@@ -25,9 +25,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 /* Sample code to demonstrate how to emulate ARM64 code */
 package samples;
 
+import junit.framework.TestCase;
 import unicorn.*;
 
-public class Sample_arm64 {
+public class Sample_arm64 extends TestCase {
 
    // code to be emulated
    public static final byte[] ARM_CODE = {-85,1,15,-117}; // add x11, x13, x15
@@ -107,6 +108,10 @@ public class Sample_arm64 {
        System.out.print(String.format(">>> X11 = 0x%x\n", x11.longValue()));
    
        u.closeAll();
+   }
+
+   public void test() {
+       main(null);
    }
    
    public static void main(String args[])
