@@ -16,7 +16,7 @@ public class Sample_arm extends TestCase {
    // memory address where emulation starts
    public static final int ADDRESS = 0x10000;
 
-   public static final long toInt(byte val[]) {
+   public static long toInt(byte[] val) {
       long res = 0;
       for (int i = 0; i < val.length; i++) {
          long v = val[i] & 0xff;
@@ -28,23 +28,23 @@ public class Sample_arm extends TestCase {
    private static class MyBlockHook implements BlockHook {
       public void hook(Unicorn u, long address, int size, Object user_data)
       {
-          System.out.print(String.format(">>> Tracing basic block at 0x%x, block size = 0x%x\n", address, size));
+          System.out.printf(">>> Tracing basic block at 0x%x, block size = 0x%x\n", address, size);
       }
    }
       
    // callback for tracing instruction
    private static class MyCodeHook implements CodeHook {
       public void hook(Unicorn u, long address, int size, Object user_data) {
-       System.out.print(String.format(">>> Tracing instruction at 0x%x, instruction size = 0x%x\n", address, size));   
+       System.out.printf(">>> Tracing instruction at 0x%x, instruction size = 0x%x\n", address, size);
       }
    }
    
    private static void _test_arm()
    {
    
-       Long r0 = new Long(0x1234); // R0 register
-       Long r2 = new Long(0x6789); // R1 register
-       Long r3 = new Long(0x3333); // R2 register
+       Long r0 = 0x1234L; // R0 register
+       Long r2 = 0x6789L; // R1 register
+       Long r3 = 0x3333L; // R2 register
        Long r1;     // R1 register
    
        System.out.print("Emulate ARM code\n");
@@ -78,8 +78,8 @@ public class Sample_arm extends TestCase {
    
        r0 = (Long)u.reg_read(Unicorn.UC_ARM_REG_R0);
        r1 = (Long)u.reg_read(Unicorn.UC_ARM_REG_R1);
-       System.out.print(String.format(">>> R0 = 0x%x\n", r0.intValue()));
-       System.out.print(String.format(">>> R1 = 0x%x\n", r1.intValue()));
+       System.out.printf(">>> R0 = 0x%x\n", r0.intValue());
+       System.out.printf(">>> R1 = 0x%x\n", r1.intValue());
    
        u.closeAll();
    }
@@ -87,7 +87,7 @@ public class Sample_arm extends TestCase {
    private static void _test_thumb()
    {
    
-       Long sp = new Long(0x1234); // R0 register
+       Long sp = 0x1234L; // R0 register
    
        System.out.print("Emulate THUMB code\n");
    
@@ -117,7 +117,7 @@ public class Sample_arm extends TestCase {
        System.out.print(">>> Emulation done. Below is the CPU context\n");
    
        sp = (Long)u.reg_read(Unicorn.UC_ARM_REG_SP);
-       System.out.print(String.format(">>> SP = 0x%x\n", sp.intValue()));
+       System.out.printf(">>> SP = 0x%x\n", sp.intValue());
    
        u.closeAll();
    }
@@ -126,7 +126,7 @@ public class Sample_arm extends TestCase {
        main(null);
    }
    
-   public static void main(String args[])
+   public static void main(String[] args)
    {
        _test_arm();
        System.out.print("==========================\n");

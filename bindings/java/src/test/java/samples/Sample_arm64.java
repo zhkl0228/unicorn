@@ -36,7 +36,7 @@ public class Sample_arm64 extends TestCase {
    // memory address where emulation starts
    public static final int ADDRESS = 0x10000;
    
-   public static final long toInt(byte val[]) {
+   public static long toInt(byte[] val) {
       long res = 0;
       for (int i = 0; i < val.length; i++) {
          long v = val[i] & 0xff;
@@ -45,7 +45,7 @@ public class Sample_arm64 extends TestCase {
       return res;
    }
 
-   public static final byte[] toBytes(long val) {
+   public static byte[] toBytes(long val) {
       byte[] res = new byte[8];
       for (int i = 0; i < 8; i++) {
          res[i] = (byte)(val & 0xff);
@@ -57,23 +57,23 @@ public class Sample_arm64 extends TestCase {
    // callback for tracing basic blocks
    private static class MyBlockHook implements BlockHook {
       public void hook(Unicorn u, long address, int size, Object user_data) {
-         System.out.print(String.format(">>> Tracing basic block at 0x%x, block size = 0x%x\n", address, size));
+         System.out.printf(">>> Tracing basic block at 0x%x, block size = 0x%x\n", address, size);
       }
    }
       
    // callback for tracing instruction
    private static class MyCodeHook implements CodeHook {
       public void hook(Unicorn u, long address, int size, Object user_data) {
-         System.out.print(String.format(">>> Tracing instruction at 0x%x, instruction size = 0x%x\n", address, size));
+         System.out.printf(">>> Tracing instruction at 0x%x, instruction size = 0x%x\n", address, size);
       }
    }
    
    private static void _test_arm64()
    {
    
-       Long x11 = new Long(0x1234);     // X11 register
-       Long x13 = new Long(0x6789);     // X13 register
-       Long x15 = new Long(0x3333);     // X15 register
+       Long x11 = 0x1234L;     // X11 register
+       Long x13 = 0x6789L;     // X13 register
+       Long x15 = 0x3333L;     // X15 register
    
        System.out.print("Emulate ARM64 code\n");
    
@@ -105,7 +105,7 @@ public class Sample_arm64 extends TestCase {
        System.out.print(">>> Emulation done. Below is the CPU context\n");
    
        x11 = (Long)u.reg_read(Unicorn.UC_ARM64_REG_X11);
-       System.out.print(String.format(">>> X11 = 0x%x\n", x11.longValue()));
+       System.out.printf(">>> X11 = 0x%x\n", x11);
    
        u.closeAll();
    }
@@ -114,7 +114,7 @@ public class Sample_arm64 extends TestCase {
        main(null);
    }
    
-   public static void main(String args[])
+   public static void main(String[] args)
    {
        _test_arm64();
    }
