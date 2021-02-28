@@ -23,7 +23,7 @@ package unicorn;
 
 public interface SyscallHook extends Hook {
 
-   public void hook(Unicorn u, Object user);
+   void hook(Unicorn u, Object user);
 
 }
 

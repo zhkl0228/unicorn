@@ -23,7 +23,7 @@ package unicorn;
 
 public interface InterruptHook extends Hook {
 
-   public void hook(Unicorn u, int intno, Object user);
+   void hook(Unicorn u, int intno, Object user);
 
 }
 

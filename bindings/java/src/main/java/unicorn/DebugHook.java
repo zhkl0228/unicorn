@@ -23,7 +23,7 @@ package unicorn;
 
 public interface DebugHook extends CodeHook {
 
-   public void onBreak(Unicorn u, long address, int size, Object user);
+   void onBreak(Unicorn u, long address, int size, Object user);
 
 }
 

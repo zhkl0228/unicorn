@@ -23,7 +23,7 @@ package unicorn;
 
 public interface BlockHook extends Hook {
 
-   public void hook(Unicorn u, long address, int size, Object user);
+   void hook(Unicorn u, long address, int size, Object user);
 
 }
 

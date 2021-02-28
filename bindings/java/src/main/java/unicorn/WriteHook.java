@@ -23,7 +23,7 @@ package unicorn;
 
 public interface WriteHook extends Hook {
 
-   public void hook(Unicorn u, long address, int size, long value, Object user);
+   void hook(Unicorn u, long address, int size, long value, Object user);
 
 }
 

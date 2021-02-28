@@ -23,7 +23,7 @@ package unicorn;
 
 public interface EventMemHook extends Hook {
 
-   public boolean hook(Unicorn u, long address, int size, long value, Object user);
+   boolean hook(Unicorn u, long address, int size, long value, Object user);
 
 }
 

@@ -23,7 +23,7 @@ package unicorn;
 
 public interface InHook extends Hook {
 
-   public int hook(Unicorn u, int port, int size, Object user);
+   int hook(Unicorn u, int port, int size, Object user);
 
 }
 
