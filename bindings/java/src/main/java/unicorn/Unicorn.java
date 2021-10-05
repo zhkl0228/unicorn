@@ -26,20 +26,20 @@ import java.util.*;
 
 public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, SparcConst, MipsConst, X86Const {
 
-   private long eng;
-   private int arch;
-   private int mode;
+   private final long eng;
+   private final int arch;
+   private final int mode;
 
    private long blockHandle = 0;
    private long interruptHandle = 0;
    private long codeHandle = 0;
 
-   private Hashtable<Integer, Long> eventMemHandles = new Hashtable<Integer, Long>();
-   private long readInvalidHandle = 0;
-   private long writeInvalidHandle = 0;
-   private long fetchProtHandle = 0;
-   private long readProtHandle = 0;
-   private long writeProtHandle = 0;
+   private final Hashtable<Integer, Long> eventMemHandles = new Hashtable<Integer, Long>();
+   private final long readInvalidHandle = 0;
+   private final long writeInvalidHandle = 0;
+   private final long fetchProtHandle = 0;
+   private final long readProtHandle = 0;
+   private final long writeProtHandle = 0;
 
    private long readHandle = 0;
    private long writeHandle = 0;
@@ -49,7 +49,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
 
    private final List<UnHook> newHookList = new ArrayList<>();
 
-   private class Tuple {
+   private static class Tuple {
       public Hook function;
       public Object data;
       public Tuple(Hook f, Object d) {
@@ -137,21 +137,21 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       }
    }
 
-   private ArrayList<Tuple> blockList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> intrList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> codeList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> readList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> writeList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> inList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> outList = new ArrayList<Tuple>();
-   private ArrayList<Tuple> syscallList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> blockList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> intrList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> codeList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> readList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> writeList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> inList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> outList = new ArrayList<Tuple>();
+   private final ArrayList<Tuple> syscallList = new ArrayList<Tuple>();
 
-   private Hashtable<Integer, ArrayList<Tuple> > eventMemLists = new Hashtable<Integer, ArrayList<Tuple> >();
+   private final Hashtable<Integer, ArrayList<Tuple> > eventMemLists = new Hashtable<Integer, ArrayList<Tuple> >();
 
-   private ArrayList<ArrayList<Tuple>> allLists = new ArrayList<ArrayList<Tuple>>();
+   private final ArrayList<ArrayList<Tuple>> allLists = new ArrayList<ArrayList<Tuple>>();
 
-   private static Hashtable<Integer,Integer> eventMemMap = new Hashtable<Integer,Integer>();
-   private static Hashtable<Long,Unicorn> unicorns = new Hashtable<Long,Unicorn>();
+   private static final Hashtable<Integer,Integer> eventMemMap = new Hashtable<Integer,Integer>();
+   private static final Hashtable<Long,Unicorn> unicorns = new Hashtable<Long,Unicorn>();
 
    //required to load native method implementations
    static {
@@ -563,7 +563,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param regids  Array of register IDs to be written.
  * @param vals  Array of register values to be written.
  */
-   public void reg_write_batch(int regids[], Object vals[]) throws UnicornException {
+   public void reg_write_batch(int[] regids, Object[] vals) throws UnicornException {
       if (regids.length != vals.length) {
          throw new UnicornException(strerror(UC_ERR_ARG));
       }
@@ -578,7 +578,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param regids  Array of register IDs to be read.
  * @return Array containing the requested register values.
  */
-   public Object[] reg_read_batch(int regids[]) throws UnicornException {
+   public Object[] reg_read_batch(int[] regids) throws UnicornException {
       Object[] vals = new Object[regids.length];
       for (int i = 0; i < regids.length; i++) {
          vals[i] = reg_read(regids[i]);
