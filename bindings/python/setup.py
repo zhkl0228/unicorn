@@ -26,10 +26,10 @@ ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 LIBS_DIR = os.path.join(ROOT_DIR, 'unicorn', 'lib')
 HEADERS_DIR = os.path.join(ROOT_DIR, 'unicorn', 'include')
 SRC_DIR = os.path.join(ROOT_DIR, 'src')
-UC_DIR = os.path.join(ROOT_DIR, '../..')
+UC_DIR = SRC_DIR if os.path.exists(SRC_DIR) else os.path.join(ROOT_DIR, '../..')
 BUILD_DIR = os.path.join(UC_DIR, 'build_python')
 
-VERSION = "2.0.0"
+VERSION = "2.0.1.post1"
 
 if SYSTEM == 'darwin':
     LIBRARY_FILE = "libunicorn.2.dylib"
@@ -60,6 +60,9 @@ def copy_sources():
     shutil.copytree(os.path.join(ROOT_DIR, '../../include'), os.path.join(SRC_DIR, 'include/'))
     # make -> configure -> clean -> clean tests fails unless tests is present
     shutil.copytree(os.path.join(ROOT_DIR, '../../tests'), os.path.join(SRC_DIR, 'tests/'))
+    shutil.copytree(os.path.join(ROOT_DIR, '../../samples'), os.path.join(SRC_DIR, 'samples/'))
+    shutil.copytree(os.path.join(ROOT_DIR, '../../glib_compat'), os.path.join(SRC_DIR, 'glib_compat/'))
+
     try:
         # remove site-specific configuration file
         # might not exist
@@ -69,6 +72,7 @@ def copy_sources():
 
     src.extend(glob.glob(os.path.join(ROOT_DIR, "../../*.[ch]")))
     src.extend(glob.glob(os.path.join(ROOT_DIR, "../../*.mk")))
+    src.extend(glob.glob(os.path.join(ROOT_DIR, "../../*.cmake")))
 
     src.extend(glob.glob(os.path.join(ROOT_DIR, "../../LICENSE*")))
     src.extend(glob.glob(os.path.join(ROOT_DIR, "../../README.md")))
@@ -213,7 +217,7 @@ based on [QEMU](http://qemu.org).
 
 Unicorn offers some unparalleled features:
 
-- Multi-architecture: ARM, ARM64 (ARMv8), M68K, MIPS, PowerPC, SPARC and X86 (16, 32, 64-bit)
+- Multi-architecture: ARM, ARM64 (ARMv8), M68K, MIPS, PowerPC, RISCV, SPARC, S390X, TriCore and X86 (16, 32, 64-bit)
 - Clean/simple/lightweight/intuitive architecture-neutral API
 - Implemented in pure C language, with bindings for Crystal, Clojure, Visual Basic, Perl, Rust, Ruby, Python, Java, .NET, Go, Delphi/Free Pascal, Haskell, Pharo, and Lua.
 - Native support for Windows & *nix (with Mac OSX, Linux, *BSD & Solaris confirmed)
