@@ -22,7 +22,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sys/types.h>
 #include "unicorn/platform.h"
 #include <stdlib.h>
-#include <string.h>
 #include "khash.h"
 
 #include <unicorn/unicorn.h>
@@ -37,6 +36,10 @@ static jmethodID onInterrupt = 0;
 static jmethodID onMemEvent = 0;
 
 static JavaVM* cachedJVM;
+static jclass jclassUnicornException;
+static jclass jclassNumber;
+static jclass jclassLong;
+static jclass jclassMemRegion;
 
 static jboolean fastDebug = JNI_TRUE;
 static jint singleStep = 0;
@@ -101,8 +104,10 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_addBreakPoint
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_removeBreakPoint
 (JNIEnv *env, jobject obj, jlong address) {
     khiter_t k = kh_get(64, bps_map, address);
-    kh_del(64, bps_map, k);
-    update_bps();
+    if (k != kh_end(bps_map)) {
+        kh_del(64, bps_map, k);
+        update_bps();
+    }
 }
 
 static inline bool hitBreakPoint(int n, uint64_t address) {
@@ -177,11 +182,8 @@ static bool cb_eventmem_new(uc_engine *eng, uc_mem_type type,
 }
 
 static void throwException(JNIEnv *env, uc_err err) {
-   jclass clazz = (*env)->FindClass(env, "unicorn/UnicornException");
-   if (err != UC_ERR_OK) {
-      const char *msg = uc_strerror(err);
-      (*env)->ThrowNew(env, clazz, msg);
-   }
+   const char *msg = uc_strerror(err);
+   (*env)->ThrowNew(env, jclassUnicornException, msg);
 }
 
 static uc_engine *getEngine(JNIEnv *env, jobject self) {
@@ -204,11 +206,7 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_reg_1write_1num
 
    static jmethodID longValue = 0;
    if(longValue == 0) {
-       jclass clz = (*env)->FindClass(env, "java/lang/Number");
-       if ((*env)->ExceptionCheck(env)) {
-          return;
-       }
-      longValue = (*env)->GetMethodID(env, clz, "longValue", "()J");
+      longValue = (*env)->GetMethodID(env, jclassNumber, "longValue", "()J");
    }
    jlong longVal = (*env)->CallLongMethod(env, value, longValue);
    uc_err err = uc_reg_write(eng, regid, &longVal);
@@ -226,22 +224,18 @@ JNIEXPORT jobject JNICALL Java_unicorn_Unicorn_reg_1read_1num
   (JNIEnv *env, jobject self, jint regid) {
    uc_engine *eng = getEngine(env, self);
 
-   jclass clz = (*env)->FindClass(env, "java/lang/Long");
-   if ((*env)->ExceptionCheck(env)) {
-      return NULL;
-   }
-
    jlong longVal;
    uc_err err = uc_reg_read(eng, regid, &longVal);
    if (err != UC_ERR_OK) {
       throwException(env, err);
+      return NULL;
    }
 
    static jmethodID cons = 0;
    if(cons == 0) {
-      cons = (*env)->GetMethodID(env, clz, "<init>", "(J)V");
+      cons = (*env)->GetMethodID(env, jclassLong, "<init>", "(J)V");
    }
-   jobject result = (*env)->NewObject(env, clz, cons, longVal);
+   jobject result = (*env)->NewObject(env, jclassLong, cons, longVal);
    if ((*env)->ExceptionCheck(env)) {
       return NULL;
    }
@@ -259,6 +253,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_open
    uc_err err = uc_open((uc_arch)arch, (uc_mode)mode, &eng);
    if (err != UC_ERR_OK) {
       throwException(env, err);
+      return 0;
    }
    uc_set_tb_flush_on_finish(eng, false);
    return (jlong)eng;
@@ -639,18 +634,15 @@ JNIEXPORT jobjectArray JNICALL Java_unicorn_Unicorn_mem_1regions
    uc_err err = uc_mem_regions(eng, &regions, &count);
    if (err != UC_ERR_OK) {
       throwException(env, err);
-   }
-   jclass clz = (*env)->FindClass(env, "unicorn/MemRegion");
-   if ((*env)->ExceptionCheck(env)) {
       return NULL;
    }
-   jobjectArray result = (*env)->NewObjectArray(env, (jsize)count, clz, NULL);
+   jobjectArray result = (*env)->NewObjectArray(env, (jsize)count, jclassMemRegion, NULL);
    static jmethodID cons = 0;
    if(cons == 0) {
-      cons = (*env)->GetMethodID(env, clz, "<init>", "(JJI)V");
+      cons = (*env)->GetMethodID(env, jclassMemRegion, "<init>", "(JJI)V");
    }
    for (i = 0; i < count; i++) {
-      jobject mr = (*env)->NewObject(env, clz, cons, regions[i].begin, regions[i].end, regions[i].perms);
+      jobject mr = (*env)->NewObject(env, jclassMemRegion, cons, regions[i].begin, regions[i].end, regions[i].perms);
       (*env)->SetObjectArrayElement(env, result, (jsize)i, mr);
    }
    uc_free(regions);
@@ -670,6 +662,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_context_1alloc
    uc_err err = uc_context_alloc(eng, &ctx);
    if (err != UC_ERR_OK) {
       throwException(env, err);
+      return 0;
    }
    return (jlong)(uint64_t)ctx;
 }
@@ -733,6 +726,30 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
     if ((*env)->ExceptionCheck(env)) {
        return JNI_ERR;
     }
+
+    jclass exClass = (*env)->FindClass(env, "unicorn/UnicornException");
+    if ((*env)->ExceptionCheck(env)) {
+       return JNI_ERR;
+    }
+    jclassUnicornException = (*env)->NewGlobalRef(env, exClass);
+
+    jclass numClass = (*env)->FindClass(env, "java/lang/Number");
+    if ((*env)->ExceptionCheck(env)) {
+       return JNI_ERR;
+    }
+    jclassNumber = (*env)->NewGlobalRef(env, numClass);
+
+    jclass longClass = (*env)->FindClass(env, "java/lang/Long");
+    if ((*env)->ExceptionCheck(env)) {
+       return JNI_ERR;
+    }
+    jclassLong = (*env)->NewGlobalRef(env, longClass);
+
+    jclass mrClass = (*env)->FindClass(env, "unicorn/MemRegion");
+    if ((*env)->ExceptionCheck(env)) {
+       return JNI_ERR;
+    }
+    jclassMemRegion = (*env)->NewGlobalRef(env, mrClass);
     
     onBlock = (*env)->GetMethodID(env, newHookClass, "onBlock", "(JI)V");
     onCode = (*env)->GetMethodID(env, newHookClass, "onCode", "(JI)V");
@@ -754,6 +771,25 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
 }
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *jvm, void *reserved) {
+    JNIEnv *env;
+    if (JNI_OK == (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION_1_6)) {
+       if (jclassUnicornException) {
+          (*env)->DeleteGlobalRef(env, jclassUnicornException);
+          jclassUnicornException = NULL;
+       }
+       if (jclassNumber) {
+          (*env)->DeleteGlobalRef(env, jclassNumber);
+          jclassNumber = NULL;
+       }
+       if (jclassLong) {
+          (*env)->DeleteGlobalRef(env, jclassLong);
+          jclassLong = NULL;
+       }
+       if (jclassMemRegion) {
+          (*env)->DeleteGlobalRef(env, jclassMemRegion);
+          jclassMemRegion = NULL;
+       }
+    }
     if(bps_map != NULL) {
        kh_destroy(64, bps_map);
     }
