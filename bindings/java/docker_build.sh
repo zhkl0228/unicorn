@@ -25,26 +25,37 @@ build_platform() {
     echo
 }
 
-build_windows() {
-    echo "=== Building for windows_64 (MinGW cross-compilation) ==="
-
+prepare_windows_sources() {
     cp "$SCRIPT_DIR/../../qemu/cpu-exec.c" "$SCRIPT_DIR/cpu-exec.c"
     cp "$SCRIPT_DIR/../../qemu/translate-all.c" "$SCRIPT_DIR/translate-all.c"
-    trap 'rm -f "$SCRIPT_DIR/cpu-exec.c" "$SCRIPT_DIR/translate-all.c"' EXIT
+}
 
-    docker build -f Dockerfile.windows -t "${IMAGE_NAME}-windows_64" .
-
+cleanup_windows_sources() {
     rm -f "$SCRIPT_DIR/cpu-exec.c" "$SCRIPT_DIR/translate-all.c"
+}
+
+build_windows() {
+    local dockerfile=$1
+    local output_dir=$2
+
+    echo "=== Building for $output_dir (MinGW cross-compilation) ==="
+
+    prepare_windows_sources
+    trap cleanup_windows_sources EXIT
+
+    docker build -f "$dockerfile" -t "${IMAGE_NAME}-${output_dir}" .
+
+    cleanup_windows_sources
     trap - EXIT
 
     echo "Extracting unicorn_java.dll..."
-    mkdir -p "$RESOURCES_DIR/windows_64"
-    CONTAINER_ID=$(docker create "${IMAGE_NAME}-windows_64")
-    docker cp "$CONTAINER_ID:/build/jni/unicorn_java.dll" "$RESOURCES_DIR/windows_64/unicorn_java.dll"
+    mkdir -p "$RESOURCES_DIR/$output_dir"
+    CONTAINER_ID=$(docker create "${IMAGE_NAME}-${output_dir}")
+    docker cp "$CONTAINER_ID:/build/jni/unicorn_java.dll" "$RESOURCES_DIR/$output_dir/unicorn_java.dll"
     docker rm "$CONTAINER_ID" > /dev/null
 
-    echo "Done: $RESOURCES_DIR/windows_64/unicorn_java.dll"
-    ls -l "$RESOURCES_DIR/windows_64/unicorn_java.dll"
+    echo "Done: $RESOURCES_DIR/$output_dir/unicorn_java.dll"
+    ls -l "$RESOURCES_DIR/$output_dir/unicorn_java.dll"
     echo
 }
 
@@ -57,16 +68,20 @@ case "$TARGET" in
     linux_64)
         build_platform linux/amd64 linux_64
         ;;
+    windows_32)
+        build_windows Dockerfile.windows32 windows_32
+        ;;
     windows_64)
-        build_windows
+        build_windows Dockerfile.windows windows_64
         ;;
     all)
         build_platform linux/amd64 linux_64
         build_platform linux/arm64 linux_arm64
-        build_windows
+        build_windows Dockerfile.windows windows_64
+        build_windows Dockerfile.windows32 windows_32
         ;;
     *)
-        echo "Usage: $0 [linux_64|linux_arm64|windows_64|all]"
+        echo "Usage: $0 [linux_64|linux_arm64|windows_32|windows_64|all]"
         exit 1
         ;;
 esac

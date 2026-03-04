@@ -1,0 +1,51 @@
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    gcc-mingw-w64-i686 g++-mingw-w64-i686 \
+    mingw-w64-i686-dev \
+    gcc make git pkg-config python2 \
+    default-jdk-headless && \
+    apt-get clean
+
+RUN mkdir -p /build/win-jni && \
+    cat > /build/win-jni/jni_md.h << 'JNIEOF'
+#ifndef _JAVASOFT_JNI_MD_H_
+#define _JAVASOFT_JNI_MD_H_
+
+#define JNIEXPORT __declspec(dllexport)
+#define JNIIMPORT __declspec(dllimport)
+#define JNICALL __stdcall
+
+typedef long jint;
+typedef long long jlong;
+typedef signed char jbyte;
+
+#endif
+JNIEOF
+
+RUN git clone --depth 1 -b master https://github.com/zhkl0228/unicorn /build/unicorn
+
+WORKDIR /build/unicorn
+
+# Patch: copy fixed source files with Windows VirtualProtect support
+COPY cpu-exec.c /build/unicorn/qemu/cpu-exec.c
+COPY translate-all.c /build/unicorn/qemu/translate-all.c
+
+# Patch Makefile: force WIN32 utils when cross-compiling for Windows
+RUN sed -i 's/CONFIG_POSIX/CONFIG_WIN32/' Makefile
+
+RUN UNICORN_ARCHS="arm aarch64" UNICORN_STATIC=yes UNICORN_SHARED=no ./make.sh cross-win32
+
+WORKDIR /build/jni
+COPY unicorn_Unicorn.c unicorn_Unicorn.h khash.h ./
+
+RUN JNI_INC="$(find /usr/lib/jvm -path '*/include/jni.h' -printf '%h\n' | head -1)" && \
+    i686-w64-mingw32-gcc -shared -O3 -static -DNDEBUG -std=gnu99 \
+      -I /build/unicorn/include \
+      -I "$JNI_INC" -I /build/win-jni \
+      unicorn_Unicorn.c \
+      /build/unicorn/libunicorn.a \
+      -lssp -lws2_32 -lpthread \
+      -o unicorn_java.dll
+
+CMD ["cp", "/build/jni/unicorn_java.dll", "/output/unicorn_java.dll"]
