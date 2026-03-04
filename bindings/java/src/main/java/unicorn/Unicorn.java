@@ -30,39 +30,31 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
    private final int arch;
    private final int mode;
 
-   private long blockHandle = 0;
-   private long interruptHandle = 0;
-   private long codeHandle = 0;
+   private final List<UnHook> hookList = new ArrayList<>();
 
-   private final Hashtable<Integer, Long> eventMemHandles = new Hashtable<Integer, Long>();
-   private final long readInvalidHandle = 0;
-   private final long writeInvalidHandle = 0;
-   private final long fetchProtHandle = 0;
-   private final long readProtHandle = 0;
-   private final long writeProtHandle = 0;
+   private static final int[] EVENT_MEM_HOOK_TYPES = {
+      UC_HOOK_MEM_READ_UNMAPPED, UC_HOOK_MEM_WRITE_UNMAPPED, UC_HOOK_MEM_FETCH_UNMAPPED,
+      UC_HOOK_MEM_READ_PROT, UC_HOOK_MEM_WRITE_PROT, UC_HOOK_MEM_FETCH_PROT,
+      UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_FETCH, UC_HOOK_MEM_READ_AFTER
+   };
 
-   private long readHandle = 0;
-   private long writeHandle = 0;
-
-   private final List<UnHook> newHookList = new ArrayList<>();
-
-   private static class Tuple {
-      public Hook function;
-      public Object data;
-      public Tuple(Hook f, Object d) {
-         function = f;
-         data = d;
+   static {
+      try {
+         org.scijava.nativelib.NativeLoader.loadLibrary("unicorn_java");
+      } catch (IOException e) {
+         throw new IllegalStateException(e);
       }
    }
+
    public class UnHook {
       private final long handle;
       public UnHook(long handle) {
          this.handle = handle;
-         newHookList.add(this);
+         hookList.add(this);
       }
       public void unhook() {
          unhookInternal();
-         newHookList.remove(this);
+         hookList.remove(this);
       }
       private boolean unhooked;
       private void unhookInternal() {
@@ -72,245 +64,48 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
          unhooked = true;
       }
    }
-   private class NewHook extends Tuple {
+
+   private class NewHook {
+      public final Hook function;
+      public final Object data;
       public NewHook(Hook f, Object d) {
-         super(f, d);
+         function = f;
+         data = d;
       }
 
-      /**
-       * for UC_HOOK_BLOCK
-       */
       void onBlock(long address, int size) {
-         BlockHook hook = (BlockHook) function;
-         hook.hook(Unicorn.this, address, size, data);
+         ((BlockHook) function).hook(Unicorn.this, address, size, data);
       }
 
-      /**
-       * for UC_HOOK_CODE
-       */
       void onCode(long address, int size) {
-         CodeHook hook = (CodeHook) function;
-         hook.hook(Unicorn.this, address, size, data);
+         ((CodeHook) function).hook(Unicorn.this, address, size, data);
       }
 
-      /**
-       * on breakpoint hit
-       */
       void onBreak(long address, int size) {
-         DebugHook hook = (DebugHook) function;
-         hook.onBreak(Unicorn.this, address, size, data);
+         ((DebugHook) function).onBreak(Unicorn.this, address, size, data);
       }
 
-      /**
-       * for UC_HOOK_MEM_READ
-       */
       void onRead(long address, int size) {
-         ReadHook hook = (ReadHook) function;
-         hook.hook(Unicorn.this, address, size, data);
+         ((ReadHook) function).hook(Unicorn.this, address, size, data);
       }
 
-      /**
-       * for UC_HOOK_MEM_WRITE
-       */
       void onWrite(long address, int size, long value) {
-         WriteHook hook = (WriteHook) function;
-         hook.hook(Unicorn.this, address, size, value, data);
+         ((WriteHook) function).hook(Unicorn.this, address, size, value, data);
       }
 
-      /**
-       * for UC_HOOK_INTR
-       */
       void onInterrupt(int intno) {
-         InterruptHook hook = (InterruptHook) function;
-         hook.hook(Unicorn.this, intno, data);
+         ((InterruptHook) function).hook(Unicorn.this, intno, data);
       }
 
-      /**
-       * for UC_HOOK_MEM_*
-       */
       boolean onMemEvent(int type, long address, int size, long value) {
-         EventMemHook hook = (EventMemHook) function;
-         return hook.hook(Unicorn.this, address, size, value, data);
+         return ((EventMemHook) function).hook(Unicorn.this, address, size, value, data);
       }
    }
 
-   private final ArrayList<Tuple> blockList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> intrList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> codeList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> readList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> writeList = new ArrayList<Tuple>();
-
-   private final Hashtable<Integer, ArrayList<Tuple> > eventMemLists = new Hashtable<Integer, ArrayList<Tuple> >();
-
-   private final ArrayList<ArrayList<Tuple>> allLists = new ArrayList<ArrayList<Tuple>>();
-
-   private static final Hashtable<Integer,Integer> eventMemMap = new Hashtable<Integer,Integer>();
-   private static final Hashtable<Long,Unicorn> unicorns = new Hashtable<Long,Unicorn>();
-
-   //required to load native method implementations
-   static {
-      try {
-         org.scijava.nativelib.NativeLoader.loadLibrary("unicorn_java");    //loads unicorn.dll  or libunicorn.so
-      } catch (IOException e) {
-         throw new IllegalStateException(e);
-      }
-      eventMemMap.put(UC_HOOK_MEM_READ_UNMAPPED, UC_MEM_READ_UNMAPPED);
-      eventMemMap.put(UC_HOOK_MEM_WRITE_UNMAPPED, UC_MEM_WRITE_UNMAPPED);
-      eventMemMap.put(UC_HOOK_MEM_FETCH_UNMAPPED, UC_MEM_FETCH_UNMAPPED);
-      eventMemMap.put(UC_HOOK_MEM_READ_PROT, UC_MEM_READ_PROT);
-      eventMemMap.put(UC_HOOK_MEM_WRITE_PROT, UC_MEM_WRITE_PROT);
-      eventMemMap.put(UC_HOOK_MEM_FETCH_PROT, UC_MEM_FETCH_PROT);
-      eventMemMap.put(UC_HOOK_MEM_READ, UC_MEM_READ);
-      eventMemMap.put(UC_HOOK_MEM_WRITE, UC_MEM_WRITE);
-      eventMemMap.put(UC_HOOK_MEM_FETCH, UC_MEM_FETCH);
-      eventMemMap.put(UC_HOOK_MEM_READ_AFTER, UC_MEM_READ_AFTER);
-   }
-
-/**
- * Invoke all UC_HOOK_BLOCK callbacks registered for a specific Unicorn.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_BLOCK
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  address The address of the instruction being executed
- * @param  size    The size of the basic block being executed
- */
-    private static void invokeBlockCallbacks(long eng, long address, int size) {
-      Unicorn u = unicorns.get(eng);
-      if (u != null) {
-         for (Tuple p : u.blockList) {
-            BlockHook bh = (BlockHook)p.function;
-            bh.hook(u, address, size, p.data);
-         }
-      }
-   }
-
-/**
- * Invoke all UC_HOOK_INTR callbacks registered for a specific Unicorn.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_INTR
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  intno   The interrupt number
- */
-   private static void invokeInterruptCallbacks(long eng, int intno) {
-      Unicorn u = unicorns.get(eng);
-      if (u != null) {
-         for (Tuple p : u.intrList) {
-            InterruptHook ih = (InterruptHook)p.function;
-            ih.hook(u, intno, p.data);
-         }
-      }
-   }
-
-/**
- * Invoke all UC_HOOK_CODE callbacks registered for a specific Unicorn.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_CODE
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  address The address of the instruction being executed
- * @param  size    The size of the instruction being executed
- */
-   private static void invokeCodeCallbacks(long eng, long address, int size) {
-      Unicorn u = unicorns.get(eng);
-      if (u != null) {
-         for (Tuple p : u.codeList) {
-            CodeHook ch = (CodeHook)p.function;
-            ch.hook(u, address, size, p.data);
-         }
-      }
-   }
-
-/**
- * Invoke all UC_HOOK_MEM_XXX_UNMAPPED and/or UC_HOOK_MEM_XXX_PROT callbacks registered
- * for a specific Unicorn.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_MEM_XXX_UNMAPPED or UC_HOOK_MEM_XXX_PROT
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  type    The type of event that is taking place
- * @param  address Address of instruction being executed
- * @param  size    Size of data being read or written
- * @param  value   Value of data being written to memory, or irrelevant if type = READ.
- * @return         true to continue, or false to stop program (due to invalid memory).
- */
-   private static boolean invokeEventMemCallbacks(long eng, int type, long address, int size, long value) {
-      Unicorn u = unicorns.get(eng);
-      boolean result = true;
-      if (u != null) {
-         ArrayList<Tuple> funcList = u.eventMemLists.get(type);
-         if (funcList != null) {
-            for (Tuple p : funcList) {
-               EventMemHook emh = (EventMemHook)p.function;
-               result &= emh.hook(u, address, size, value, p.data);
-            }
-         }
-      }
-      return result;
-   }
-
-/**
- * Invoke all UC_HOOK_MEM_READ callbacks registered for a specific Unicorn.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_MEM_READ
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  address Address of instruction being executed
- * @param  size    Size of data being read
- */
-   private static void invokeReadCallbacks(long eng, long address, int size) {
-      Unicorn u = unicorns.get(eng);
-      if (u != null) {
-         for (Tuple p : u.readList) {
-            ReadHook rh = (ReadHook)p.function;
-            rh.hook(u, address, size, p.data);
-         }
-      }
-   }
-
-/**
- * Invoke all UC_HOOK_MEM_WRITE callbacks registered for a specific Unicorn.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_MEM_WRITE
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  address Address of instruction being executed
- * @param  size    Size of data being read
- * @param  value   value being written
- */
-   private static void invokeWriteCallbacks(long eng, long address, int size, long value) {
-      Unicorn u = unicorns.get(eng);
-      if (u != null) {
-         for (Tuple p : u.writeList) {
-            WriteHook wh = (WriteHook)p.function;
-            wh.hook(u, address, size, value, p.data);
-         }
-      }
-   }
-
-/**
- * Write to register.
- *
- * @param  regid  Register ID that is to be modified.
- * @param  value  Number containing the new register value
- */
    private native void reg_write_num(int regid, Number value) throws UnicornException;
 
-/**
- * Read register value.
- *
- * @param regid  Register ID that is to be retrieved.
- * @return Number containing the requested register value.
- */
    private native Number reg_read_num(int regid) throws UnicornException;
 
-/**
- * Native access to uc_open
- *
- * @param  arch  Architecture type (UC_ARCH_*)
- * @param  mode  Hardware mode. This is combined of UC_MODE_*
- */
    private native long open(int arch, int mode) throws UnicornException;
 
 /**
@@ -319,36 +114,17 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
  * @param  arch  Architecture type (UC_ARCH_*)
  * @param  mode  Hardware mode. This is combined of UC_MODE_*
  * @see    unicorn.UnicornConst
- *
  */
    public Unicorn(int arch, int mode) throws UnicornException {
-      //remember these in case we need arch specific code
       this.arch = arch;
       this.mode = mode;
       eng = open(arch, mode);
-      unicorns.put(eng, this);
-      allLists.add(blockList);
-      allLists.add(intrList);
-      allLists.add(codeList);
-      allLists.add(readList);
-      allLists.add(writeList);
-   }
-
-/**
- * Perform native cleanup tasks associated with a Unicorn object
- *
- */
-   protected void finalize() {
-//      unicorns.remove(eng);
-//      close();
    }
 
 /**
  * Return combined API version & major and minor version numbers.
  *
  * @return hexadecimal number as (major << 8 | minor), which encodes both major & minor versions.
- *
- * For example Unicorn version 1.2 whould yield 0x0102
  */
    public native static int version();
 
@@ -361,24 +137,36 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
  */
    public native static boolean arch_supported(int arch);
 
+/**
+ * Return a string describing given error code.
+ *
+ * @param  code   Error code (see UC_ERR_* above)
+ * @return Returns a String that describes the error code
+ * @see unicorn.UnicornConst
+ */
+   public native static String strerror(int code);
+
+/**
+ * Free a resource allocated within Unicorn. Use for handles
+ * allocated by context_alloc.
+ *
+ * @param handle Previously allocated Unicorn object handle.
+ */
+   public native static void free(long handle);
+
    public void closeAll() throws UnicornException {
-      for (UnHook unHook : newHookList) {
+      for (UnHook unHook : hookList) {
          unHook.unhookInternal();
       }
       close();
    }
 
-/**
- * Close the underlying uc_engine* eng associated with this Unicorn object
- *
- */
    private native void close() throws UnicornException;
 
 /**
  * Query internal status of engine.
  *
  * @param   type     query type. See UC_QUERY_*
- *
  * @return  error code. see UC_ERR_*
  * @see     unicorn.UnicornConst
  */
@@ -392,15 +180,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
  * @see unicorn.UnicornConst
  */
    public native int errno();
-
-/**
- * Return a string describing given error code.
- *
- * @param  code   Error code (see UC_ERR_* above)
- * @return Returns a String that describes the error code
- * @see unicorn.UnicornConst
- */
-   public native static String strerror(int code);
 
 /**
  * Write to register.
@@ -444,7 +223,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
    }
 
 /**
- * Batch write register values. regids.length == vals.length or UC_ERR_ARG
+ * Batch write register values.
  *
  * @param regids  Array of register IDs to be written.
  * @param vals  Array of register values to be written.
@@ -464,8 +243,8 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
  * @param regids  Array of register IDs to be read.
  * @return Array containing the requested register values.
  */
-   public Object[] reg_read_batch(int[] regids) throws UnicornException {
-      Object[] vals = new Object[regids.length];
+   public long[] reg_read_batch(int[] regids) throws UnicornException {
+      long[] vals = new long[regids.length];
       for (int i = 0; i < regids.length; i++) {
          vals[i] = reg_read(regids[i]);
       }
@@ -475,7 +254,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
 /**
  * Write to memory.
  *
- * @param  address  Start addres of the memory region to be written.
+ * @param  address  Start address of the memory region to be written.
  * @param  bytes    The values to be written into memory. bytes.length bytes will be written.
  */
    public native void mem_write(long address, byte[] bytes) throws UnicornException;
@@ -483,7 +262,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
 /**
  * Read memory contents.
  *
- * @param address  Start addres of the memory region to be read.
+ * @param address  Start address of the memory region to be read.
  * @param size     Number of bytes to be retrieved.
  * @return Byte array containing the contents of the requested memory range.
  */
@@ -494,64 +273,22 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
  *
  * @param begin    Address where emulation starts
  * @param until    Address where emulation stops (i.e when this address is hit)
- * @param timeout  Duration to emulate the code (in microseconds). When this value is 0, we will emulate the code in infinite time, until the code is finished.
- * @param count    The number of instructions to be emulated. When this value is 0, we will emulate all the code available, until the code is finished.
+ * @param timeout  Duration to emulate the code (in microseconds). When this value is 0,
+ *                 we will emulate the code in infinite time, until the code is finished.
+ * @param count    The number of instructions to be emulated. When this value is 0,
+ *                 we will emulate all the code available, until the code is finished.
  */
    public native void emu_start(long begin, long until, long timeout, long count) throws UnicornException;
 
 /**
- * Stop emulation (which was started by emu_start() ).
+ * Stop emulation (which was started by emu_start()).
  * This is typically called from callback functions registered via tracing APIs.
  * NOTE: for now, this will stop the execution only after the current block.
  */
    public native void emu_stop() throws UnicornException;
 
-/**
- * Hook registration helper for hook types that require no additional arguments.
- *
- * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
- * @param type     UC_HOOK_* hook type
- * @return         Unicorn uch returned for registered hook function
- */
-   private native static long registerHook(long eng, int type);
-
-/**
- * Hook registration helper for hook types that require no additional arguments.
- *
- * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
- * @param type     UC_HOOK_* hook type
- * @return         Unicorn uch returned for registered hook function
- */
    private native static long registerHook(long eng, int type, NewHook hook);
 
-/**
- * Hook registration helper for hook types that require one additional argument.
- *
- * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
- * @param type     UC_HOOK_* hook type
- * @param arg1     Additional varargs argument
- * @return         Unicorn uch returned for registered hook function
- */
-   private native static long registerHook(long eng, int type, int arg1);
-
-/**
- * Hook registration helper for hook types that require two additional arguments.
- *
- * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
- * @param type     UC_HOOK_* hook type
- * @param arg1     First additional varargs argument
- * @param arg2     Second additional varargs argument
- * @return         Unicorn uch returned for registered hook function
- */
-   private native static long registerHook(long eng, int type, long arg1, long arg2);
-
-/**
- * Hook registration helper for hook types that require two additional arguments.
- *
- * @param eng      Internal unicorn uc_engine* eng associated with hooking Unicorn object
- * @param type     UC_HOOK_* hook type
- * @return         Unicorn uch returned for registered hook function
- */
    private native static long registerHook(long eng, int type, long begin, long end, NewHook hook);
 
    private native static long registerDebugger(long eng, long begin, long end, NewHook hook);
@@ -561,75 +298,46 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
    public native void addBreakPoint(long address);
    public native void removeBreakPoint(long address);
 
-/**
- * Hook registration helper for unhook.
- *
- * @param handle   Unicorn uch returned for registered hook function
- */
    private native void hook_del(long handle) throws UnicornException;
 
 /**
- * Hook registration for UC_HOOK_BLOCK hooks. The registered callback function will be
- * invoked when a basic block is entered and the address of the basic block (BB) falls in the
- * range begin <= BB <= end. For the special case in which begin > end, the callback will be
- * invoked whenver any basic block is entered.
+ * Hook registration for UC_HOOK_BLOCK hooks.
  *
- * @param callback Implementation of a BlockHook interface
- * @param begin    Start address of hooking range
- * @param end      End address of hooking range
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of a BlockHook interface
+ * @param begin     Start address of hooking range
+ * @param end       End address of hooking range
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return UnHook handle that can be used to remove the hook
  */
-   public void hook_add(BlockHook callback, long begin, long end, Object user_data) throws UnicornException {
-      if (blockHandle == 0) {
-         blockHandle = registerHook(eng, UC_HOOK_BLOCK, begin, end);
-      }
-      blockList.add(new Tuple(callback, user_data));
-   }
-
-   public UnHook hook_add_new(BlockHook callback, long begin, long end, Object user_data) throws UnicornException {
+   public UnHook hook_add(BlockHook callback, long begin, long end, Object user_data) throws UnicornException {
       NewHook hook = new NewHook(callback, user_data);
       long handle = registerHook(eng, UC_HOOK_BLOCK, begin, end, hook);
       return new UnHook(handle);
    }
 
 /**
- * Hook registration for UC_HOOK_INTR hooks. The registered callback function will be
- * invoked whenever an interrupt instruction is executed.
+ * Hook registration for UC_HOOK_INTR hooks.
  *
- * @param callback Implementation of a InterruptHook interface
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of an InterruptHook interface
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return UnHook handle that can be used to remove the hook
  */
-   public void hook_add(InterruptHook callback, Object user_data) throws UnicornException {
-      if (interruptHandle == 0) {
-         interruptHandle = registerHook(eng, UC_HOOK_INTR);
-      }
-      intrList.add(new Tuple(callback, user_data));
-   }
-
-   public UnHook hook_add_new(InterruptHook callback, Object user_data) throws UnicornException {
+   public UnHook hook_add(InterruptHook callback, Object user_data) throws UnicornException {
       NewHook hook = new NewHook(callback, user_data);
       long handle = registerHook(eng, UC_HOOK_INTR, hook);
       return new UnHook(handle);
    }
 
 /**
- * Hook registration for UC_HOOK_CODE hooks. The registered callback function will be
- * invoked when an instruction is executed from the address range begin <= PC <= end. For
- * the special case in which begin > end, the callback will be invoked for ALL instructions.
+ * Hook registration for UC_HOOK_CODE hooks.
  *
- * @param callback Implementation of a CodeHook interface
- * @param begin    Start address of hooking range
- * @param end      End address of hooking range
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of a CodeHook interface
+ * @param begin     Start address of hooking range
+ * @param end       End address of hooking range
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return UnHook handle that can be used to remove the hook
  */
-   public void hook_add(CodeHook callback, long begin, long end, Object user_data) throws UnicornException {
-      if (codeHandle == 0) {
-         codeHandle = registerHook(eng, UC_HOOK_CODE, begin, end);
-      }
-      codeList.add(new Tuple(callback, user_data));
-   }
-
-   public UnHook hook_add_new(CodeHook callback, long begin, long end, Object user_data) throws UnicornException {
+   public UnHook hook_add(CodeHook callback, long begin, long end, Object user_data) throws UnicornException {
       NewHook hook = new NewHook(callback, user_data);
       long handle = registerHook(eng, UC_HOOK_CODE, begin, end, hook);
       return new UnHook(handle);
@@ -642,117 +350,69 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
    }
 
 /**
- * Hook registration for UC_HOOK_MEM_READ hooks. The registered callback function will be
- * invoked whenever a memory read is performed within the address range begin <= read_addr <= end. For
- * the special case in which begin > end, the callback will be invoked for ALL memory reads.
+ * Hook registration for UC_HOOK_MEM_READ hooks.
  *
- * @param callback Implementation of a ReadHook interface
- * @param begin    Start address of memory read range
- * @param end      End address of memory read range
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of a ReadHook interface
+ * @param begin     Start address of memory read range
+ * @param end       End address of memory read range
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return UnHook handle that can be used to remove the hook
  */
-   public void hook_add(ReadHook callback, long begin, long end, Object user_data) throws UnicornException {
-      if (readHandle == 0) {
-         readHandle = registerHook(eng, UC_HOOK_MEM_READ, begin, end);
-      }
-      readList.add(new Tuple(callback, user_data));
-   }
-
-   public UnHook hook_add_new(ReadHook callback, long begin, long end, Object user_data) throws UnicornException {
+   public UnHook hook_add(ReadHook callback, long begin, long end, Object user_data) throws UnicornException {
       NewHook hook = new NewHook(callback, user_data);
       long handle = registerHook(eng, UC_HOOK_MEM_READ, begin, end, hook);
       return new UnHook(handle);
    }
 
 /**
- * Hook registration for UC_HOOK_MEM_WRITE hooks. The registered callback function will be
- * invoked whenever a memory write is performed within the address range begin <= write_addr <= end. For
- * the special case in which begin > end, the callback will be invoked for ALL memory writes.
+ * Hook registration for UC_HOOK_MEM_WRITE hooks.
  *
- * @param callback Implementation of a WriteHook interface
- * @param begin    Start address of memory write range
- * @param end      End address of memory write range
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of a WriteHook interface
+ * @param begin     Start address of memory write range
+ * @param end       End address of memory write range
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return UnHook handle that can be used to remove the hook
  */
-   public void hook_add(WriteHook callback, long begin, long end, Object user_data) throws UnicornException {
-      if (writeHandle == 0) {
-         writeHandle = registerHook(eng, UC_HOOK_MEM_WRITE, begin, end);
-      }
-      writeList.add(new Tuple(callback, user_data));
-   }
-
-   public UnHook hook_add_new(WriteHook callback, long begin, long end, Object user_data) throws UnicornException {
+   public UnHook hook_add(WriteHook callback, long begin, long end, Object user_data) throws UnicornException {
       NewHook hook = new NewHook(callback, user_data);
       long handle = registerHook(eng, UC_HOOK_MEM_WRITE, begin, end, hook);
       return new UnHook(handle);
    }
 
 /**
- * Hook registration for UC_HOOK_MEM_WRITE | UC_HOOK_MEM_WRITE hooks. The registered callback function will be
- * invoked whenever a memory write or read is performed within the address range begin <= addr <= end. For
- * the special case in which begin > end, the callback will be invoked for ALL memory writes.
+ * Hook registration for UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE hooks.
  *
- * @param callback Implementation of a MemHook interface
- * @param begin    Start address of memory range
- * @param end      End address of memory range
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of a MemHook interface
+ * @param begin     Start address of memory range
+ * @param end       End address of memory range
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return Array of UnHook handles (read hook, write hook)
  */
-   public void hook_add(MemHook callback, long begin, long end, Object user_data) throws UnicornException {
-      hook_add((ReadHook)callback, begin, end, user_data);
-      hook_add((WriteHook)callback, begin, end, user_data);
+   public UnHook[] hook_add(MemHook callback, long begin, long end, Object user_data) throws UnicornException {
+      return new UnHook[] {
+         hook_add((ReadHook) callback, begin, end, user_data),
+         hook_add((WriteHook) callback, begin, end, user_data)
+      };
    }
 
 /**
  * Hook registration for UC_HOOK_MEM_XXX_UNMAPPED and UC_HOOK_MEM_XXX_PROT hooks.
- * The registered callback function will be invoked whenever a read or write is
- * attempted from an invalid or protected memory address.
  *
- * @param callback Implementation of a EventMemHook interface
- * @param type Type of memory event being hooked such as UC_HOOK_MEM_READ_UNMAPPED or UC_HOOK_MEM_WRITE_PROT
- * @param user_data  User data to be passed to the callback function each time the event is triggered
+ * @param callback  Implementation of an EventMemHook interface
+ * @param type      Type of memory event being hooked such as UC_HOOK_MEM_READ_UNMAPPED
+ * @param user_data User data to be passed to the callback function each time the event is triggered
+ * @return Map of hook type to UnHook handle
  */
-   public void hook_add(EventMemHook callback, int type, Object user_data) throws UnicornException {
-      //test all of the EventMem related bits in type
-      for (Integer htype : eventMemMap.keySet()) {
-         if ((type & htype) != 0) { //the 'htype' bit is set in type
-            Long handle = eventMemHandles.get(htype);
-            if (handle == null) {
-               eventMemHandles.put(htype, registerHook(eng, htype));
-            }
-            int cbType = eventMemMap.get(htype);
-            ArrayList<Tuple> flist = eventMemLists.get(cbType);
-            if (flist == null) {
-               flist = new ArrayList<Tuple>();
-               allLists.add(flist);
-               eventMemLists.put(cbType, flist);
-            }
-            flist.add(new Tuple(callback, user_data));
-         }
-      }
-   }
-
-   public Map<Integer, UnHook> hook_add_new(EventMemHook callback, int type, Object user_data) throws UnicornException {
-      //test all of the EventMem related bits in type
-      Map<Integer, UnHook> map = new HashMap<>(eventMemMap.size());
-      for (Integer htype : eventMemMap.keySet()) {
-         if ((type & htype) != 0) { //the 'htype' bit is set in type
+   public Map<Integer, UnHook> hook_add(EventMemHook callback, int type, Object user_data) throws UnicornException {
+      Map<Integer, UnHook> map = new HashMap<>();
+      for (int htype : EVENT_MEM_HOOK_TYPES) {
+         if ((type & htype) != 0) {
             NewHook hook = new NewHook(callback, user_data);
             long handle = registerHook(eng, htype, hook);
             map.put(htype, new UnHook(handle));
          }
       }
       return map;
-   }
-
-   public void hook_del(Hook hook) throws UnicornException {
-      for (ArrayList<Tuple> l : allLists) {
-         for (Tuple t : l) {
-            if (t.function.equals(hook)) {
-               allLists.remove(t);
-               return;
-            }
-         }
-      }
    }
 
 /**
@@ -766,14 +426,11 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
 
 /**
  *  Map existing host memory in for emulation.
- *  This API adds a memory region that can be used by emulation.
  *
  * @param address Base address of the memory range
  * @param size    Size of the memory block.
  * @param perms   Permissions on the memory block. A combination of UC_PROT_READ, UC_PROT_WRITE, UC_PROT_EXEC
- * @param block   Block of host memory backing the newly mapped memory. This block is
- *                expected to be an equal or larger size than provided, and be mapped with at
- *                least PROT_READ | PROT_WRITE. If it is not, the resulting behavior is undefined.
+ * @param block   Block of host memory backing the newly mapped memory.
  */
    public native void mem_map_ptr(long address, long size, int perms, byte[] block) throws UnicornException;
 
@@ -795,48 +452,34 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
    public native void mem_protect(long address, long size, int perms) throws UnicornException;
 
 /**
- * Retrieve all memory regions mapped by mem_map() and mem_map_ptr()
+ * Retrieve all memory regions mapped by mem_map() and mem_map_ptr().
  * NOTE: memory regions may be split by mem_unmap()
  *
  * @return  list of mapped regions.
-*/
+ */
    public native MemRegion[] mem_regions() throws UnicornException;
 
 /**
  * Allocate a region that can be used with uc_context_{save,restore} to perform
  * quick save/rollback of the CPU context, which includes registers and some
- * internal metadata. Contexts may not be shared across engine instances with
- * differing arches or modes.
+ * internal metadata.
  *
  * @return context handle for use with save/restore.
-*/
+ */
    public native long context_alloc();
 
 /**
- * Free a resource allocated within Unicorn. Use for handles
- * allocated by context_alloc.
- *
- * @param handle Previously allocated Unicorn object handle.
-*/
-   public native static void free(long handle);
-
-/**
  * Save a copy of the internal CPU context.
- * This API should be used to efficiently make or update a saved copy of the
- * internal CPU state.
  *
  * @param context handle previously returned by context_alloc.
-*/
+ */
    public native void context_save(long context);
 
 /**
  * Restore the current CPU context from a saved copy.
- * This API should be used to roll the CPU context back to a previous
- * state saved by uc_context_save().
  *
  * @param context handle previously returned by context_alloc.
-*/
+ */
    public native void context_restore(long context);
 
 }
-

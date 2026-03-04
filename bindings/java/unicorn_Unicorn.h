@@ -17,26 +17,10 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_reg_1write_1num
 
 /*
  * Class:     unicorn_Unicorn
- * Method:    reg_write_mmr
- * Signature: (ILunicorn/X86_MMR;)V
- */
-JNIEXPORT void JNICALL Java_unicorn_Unicorn_reg_1write_1mmr
-  (JNIEnv *, jobject, jint, jobject);
-
-/*
- * Class:     unicorn_Unicorn
  * Method:    reg_read_num
  * Signature: (I)Ljava/lang/Number;
  */
 JNIEXPORT jobject JNICALL Java_unicorn_Unicorn_reg_1read_1num
-  (JNIEnv *, jobject, jint);
-
-/*
- * Class:     unicorn_Unicorn
- * Method:    reg_read_mmr
- * Signature: (I)Ljava/lang/Number;
- */
-JNIEXPORT jobject JNICALL Java_unicorn_Unicorn_reg_1read_1mmr
   (JNIEnv *, jobject, jint);
 
 /*
@@ -146,34 +130,10 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_emu_1stop
 /*
  * Class:     unicorn_Unicorn
  * Method:    registerHook
- * Signature: (JI)J
- */
-JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JI
-  (JNIEnv *, jclass, jlong, jint);
-
-/*
- * Class:     unicorn_Unicorn
- * Method:    registerHook
  * Signature: (JILunicorn/Unicorn/NewHook;)J
  */
 JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JILunicorn_Unicorn_NewHook_2
   (JNIEnv *, jclass, jlong, jint, jobject);
-
-/*
- * Class:     unicorn_Unicorn
- * Method:    registerHook
- * Signature: (JII)J
- */
-JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JII
-  (JNIEnv *, jclass, jlong, jint, jint);
-
-/*
- * Class:     unicorn_Unicorn
- * Method:    registerHook
- * Signature: (JIJJ)J
- */
-JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_registerHook__JIJJ
-  (JNIEnv *, jclass, jlong, jint, jlong, jlong);
 
 /*
  * Class:     unicorn_Unicorn
