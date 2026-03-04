@@ -19,7 +19,12 @@
 
 /* Modified for Unicorn Engine by Nguyen Anh Quynh, 2015 */
 
+#ifndef _WIN32
 #include <sys/mman.h>
+#endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "tcg.h"
 #include "sysemu/sysemu.h"
 
@@ -47,6 +52,20 @@ void cpu_resume_from_signal(CPUState *cpu, void *puc)
     siglongjmp(cpu->jmp_env, 1);
 }
 
+#ifdef _WIN32
+static inline QEMU_UNUSED_FUNC void map_exec(void *addr, long size)
+{
+    DWORD old_protect;
+    VirtualProtect(addr, size,
+                   PAGE_EXECUTE_READWRITE, &old_protect);
+}
+static inline QEMU_UNUSED_FUNC void map_writable(void *addr, long size)
+{
+    DWORD old_protect;
+    VirtualProtect(addr, size,
+                   PAGE_READWRITE, &old_protect);
+}
+#else
 static inline QEMU_UNUSED_FUNC void map_exec(void *addr, long size)
 {
     unsigned long start, end, page_size;
@@ -77,6 +96,7 @@ static inline QEMU_UNUSED_FUNC void map_writable(void *addr, long size)
     mprotect((void *)start, end - start,
              PROT_READ | PROT_WRITE);
 }
+#endif
 
 /* main execution loop */
 

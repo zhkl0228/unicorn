@@ -330,6 +330,12 @@ static inline QEMU_UNUSED_FUNC void map_exec(void *addr, long size)
     VirtualProtect(addr, size,
                    PAGE_EXECUTE_READWRITE, &old_protect);
 }
+static inline QEMU_UNUSED_FUNC void map_writable(void *addr, long size)
+{
+    DWORD old_protect;
+    VirtualProtect(addr, size,
+                   PAGE_READWRITE, &old_protect);
+}
 #else
 static inline QEMU_UNUSED_FUNC void map_exec(void *addr, long size)
 {
