@@ -735,6 +735,39 @@ JNIEXPORT void JNICALL Java_unicorn_Unicorn_context_1restore
    }
 }
 
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    getMemAllocatedSize
+ * Signature: ()J
+ */
+JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_getMemAllocatedSize
+  (JNIEnv *env, jobject self) {
+   uc_engine *eng = getInstance(env, self)->eng;
+   uc_mem_region *regions = NULL;
+   uint32_t count = 0;
+   uc_err err = uc_mem_regions(eng, &regions, &count);
+   if (err != UC_ERR_OK) {
+      throwException(env, err);
+      return 0;
+   }
+   uint64_t total = 0;
+   for (uint32_t i = 0; i < count; i++) {
+      total += regions[i].end - regions[i].begin + 1;
+   }
+   uc_free(regions);
+   return (jlong) total;
+}
+
+/*
+ * Class:     unicorn_Unicorn
+ * Method:    getMemResidentSize
+ * Signature: ()J
+ */
+JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_getMemResidentSize
+  (JNIEnv *env, jobject self) {
+   return Java_unicorn_Unicorn_getMemAllocatedSize(env, self);
+}
+
 static JNINativeMethod s_methods[] = {
         {"registerHook",           "(JIJJLunicorn/Unicorn$NewHook;)J",          (void *) Java_unicorn_Unicorn_registerHook__JIJJLunicorn_Unicorn_NewHook_2 },
         {"registerHook",           "(JILunicorn/Unicorn$NewHook;)J",            (void *) Java_unicorn_Unicorn_registerHook__JILunicorn_Unicorn_NewHook_2 }

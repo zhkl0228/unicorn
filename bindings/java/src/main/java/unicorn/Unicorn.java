@@ -482,4 +482,18 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
  */
    public native void context_restore(long context);
 
+/**
+ * Get the total size of all mapped memory regions.
+ *
+ * @return total allocated memory size in bytes.
+ */
+   public native long getMemAllocatedSize();
+
+/**
+ * Get the resident memory size (same as allocated size for this engine).
+ *
+ * @return resident memory size in bytes.
+ */
+   public native long getMemResidentSize();
+
 }
