@@ -24,7 +24,7 @@ package unicorn;
 import java.io.IOException;
 import java.util.*;
 
-public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, SparcConst, MipsConst, X86Const {
+public class Unicorn implements UnicornConst, ArmConst, Arm64Const {
 
    private final long eng;
    private final int arch;
@@ -43,9 +43,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
 
    private long readHandle = 0;
    private long writeHandle = 0;
-   private long inHandle = 0;
-   private long outHandle = 0;
-   private long syscallHandle = 0;
 
    private final List<UnHook> newHookList = new ArrayList<>();
 
@@ -142,9 +139,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
    private final ArrayList<Tuple> codeList = new ArrayList<Tuple>();
    private final ArrayList<Tuple> readList = new ArrayList<Tuple>();
    private final ArrayList<Tuple> writeList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> inList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> outList = new ArrayList<Tuple>();
-   private final ArrayList<Tuple> syscallList = new ArrayList<Tuple>();
 
    private final Hashtable<Integer, ArrayList<Tuple> > eventMemLists = new Hashtable<Integer, ArrayList<Tuple> >();
 
@@ -180,7 +174,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param  eng     A Unicorn uc_engine* eng returned by uc_open
  * @param  address The address of the instruction being executed
  * @param  size    The size of the basic block being executed
- * @see         hook_add, unicorn.BlockHook
  */
     private static void invokeBlockCallbacks(long eng, long address, int size) {
       Unicorn u = unicorns.get(eng);
@@ -199,7 +192,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  *
  * @param  eng     A Unicorn uc_engine* eng returned by uc_open
  * @param  intno   The interrupt number
- * @see         hook_add, unicorn.InterruptHook
  */
    private static void invokeInterruptCallbacks(long eng, int intno) {
       Unicorn u = unicorns.get(eng);
@@ -219,7 +211,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param  eng     A Unicorn uc_engine* eng returned by uc_open
  * @param  address The address of the instruction being executed
  * @param  size    The size of the instruction being executed
- * @see         hook_add, unicorn.CodeHook
  */
    private static void invokeCodeCallbacks(long eng, long address, int size) {
       Unicorn u = unicorns.get(eng);
@@ -243,7 +234,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param  size    Size of data being read or written
  * @param  value   Value of data being written to memory, or irrelevant if type = READ.
  * @return         true to continue, or false to stop program (due to invalid memory).
- * @see            hook_add, unicorn.EventMemHook
  */
    private static boolean invokeEventMemCallbacks(long eng, int type, long address, int size, long value) {
       Unicorn u = unicorns.get(eng);
@@ -268,7 +258,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param  eng     A Unicorn uc_engine* eng returned by uc_open
  * @param  address Address of instruction being executed
  * @param  size    Size of data being read
- * @see         hook_add, unicorn.ReadHook
  */
    private static void invokeReadCallbacks(long eng, long address, int size) {
       Unicorn u = unicorns.get(eng);
@@ -289,7 +278,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param  address Address of instruction being executed
  * @param  size    Size of data being read
  * @param  value   value being written
- * @see         hook_add, unicorn.WriteHook
  */
    private static void invokeWriteCallbacks(long eng, long address, int size, long value) {
       Unicorn u = unicorns.get(eng);
@@ -297,72 +285,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
          for (Tuple p : u.writeList) {
             WriteHook wh = (WriteHook)p.function;
             wh.hook(u, address, size, value, p.data);
-         }
-      }
-   }
-
-/**
- * Invoke all UC_HOOK_INSN callbacks registered for a specific Unicorn.
- * This is specifically for the x86 IN instruction.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_INSN
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  port    I/O Port number
- * @param  size    Data size (1/2/4) to be read from this port
- * @return  Data supplied from the input port
- * @see         hook_add, unicorn.InHook
- */
-   private static int invokeInCallbacks(long eng, int port, int size) {
-      Unicorn u = unicorns.get(eng);
-      int result = 0;
-      if (u != null) {
-         for (Tuple p : u.inList) {
-            InHook ih = (InHook)p.function;
-            result = ih.hook(u, port, size, p.data);
-         }
-      }
-      return result;
-   }
-
-/**
- * Invoke all UC_HOOK_INSN callbacks registered for a specific Unicorn.
- * This is specifically for the x86 OUT instruction.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_INSN
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @param  port    I/O Port number
- * @param  size    Data size (1/2/4) to be written to this port
- * @see         hook_add, unicorn.OutHook
- */
-   private static void invokeOutCallbacks(long eng, int port, int size, int value) {
-      Unicorn u = unicorns.get(eng);
-      int result = 0;
-      if (u != null) {
-         for (Tuple p : u.outList) {
-            OutHook oh = (OutHook)p.function;
-            oh.hook(u, port, size, value, p.data);
-         }
-      }
-   }
-
-/**
- * Invoke all UC_HOOK_INSN callbacks registered for a specific Unicorn.
- * This is specifically for the x86 SYSCALL and SYSENTER instruction.
- * This function gets invoked from the native C callback registered for
- * for UC_HOOK_INSN
- *
- * @param  eng     A Unicorn uc_engine* eng returned by uc_open
- * @see         hook_add, unicorn.SyscallHook
- */
-   private static void invokeSyscallCallbacks(long eng) {
-      Unicorn u = unicorns.get(eng);
-      int result = 0;
-      if (u != null) {
-         for (Tuple p : u.syscallList) {
-            SyscallHook sh = (SyscallHook)p.function;
-            sh.hook(u, p.data);
          }
       }
    }
@@ -376,28 +298,12 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
    private native void reg_write_num(int regid, Number value) throws UnicornException;
 
 /**
- * Write to register.
- *
- * @param  regid  Register ID that is to be modified.
- * @param  value  X86 specific memory management register containing the new register value
- */
-   private native void reg_write_mmr(int regid, X86_MMR value) throws UnicornException;
-
-/**
  * Read register value.
  *
  * @param regid  Register ID that is to be retrieved.
  * @return Number containing the requested register value.
  */
    private native Number reg_read_num(int regid) throws UnicornException;
-
-/**
- * Read register value.
- *
- * @param regid  Register ID that is to be retrieved.
- * @return X86_MMR containing the requested register value.
- */
-   private native Number reg_read_mmr(int regid) throws UnicornException;
 
 /**
  * Native access to uc_open
@@ -426,9 +332,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       allLists.add(codeList);
       allLists.add(readList);
       allLists.add(writeList);
-      allLists.add(inList);
-      allLists.add(outList);
-      allLists.add(syscallList);
    }
 
 /**
@@ -502,7 +405,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
 /**
  * Write to register.
  *
- * @deprecated use reg_write(int regid, Object value) instead
+ * @deprecated use reg_write(int regid, long value) instead
  * @param  regid  Register ID that is to be modified.
  * @param  value  Array containing value that will be written into register @regid
  */
@@ -513,27 +416,16 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * Write to register.
  *
  * @param  regid  Register ID that is to be modified.
- * @param  value  Object containing the new register value. Long, BigInteger, or
- *                other custom class used to represent register values
+ * @param  value  long value to be written into register
  */
-   public void reg_write(int regid, Object value) throws UnicornException {
-      if (value instanceof Number) {
-         reg_write_num(regid, (Number)value);
-      }
-      else if (arch == UC_ARCH_X86 && value instanceof X86_MMR) {
-         if (regid >= UC_X86_REG_IDTR && regid <= UC_X86_REG_TR) {
-            reg_write_mmr(regid, (X86_MMR)value);
-         }
-      }
-      else {
-         throw new ClassCastException("Invalid value type");
-      }
+   public void reg_write(int regid, long value) throws UnicornException {
+      reg_write_num(regid, value);
    }
 
 /**
  * Read register value.
  *
- * @deprecated use Object reg_read(int regid) instead
+ * @deprecated use long reg_read(int regid) instead
  * @param regid  Register ID that is to be retrieved.
  * @param regsz  Size of the register being retrieved.
  * @return Byte array containing the requested register value.
@@ -545,16 +437,10 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * Read register value.
  *
  * @param regid  Register ID that is to be retrieved.
- * @return Object containing the requested register value. Long, BigInteger, or
- *                other custom class used to represent register values
+ * @return long value of the requested register.
  */
-   public Object reg_read(int regid) throws UnicornException {
-      if (arch == UC_ARCH_X86 && regid >= UC_X86_REG_IDTR && regid <= UC_X86_REG_TR) {
-         return reg_read_mmr(regid);
-      }
-      else {
-         return reg_read_num(regid);
-      }
+   public long reg_read(int regid) throws UnicornException {
+      return reg_read_num(regid).longValue();
    }
 
 /**
@@ -563,7 +449,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  * @param regids  Array of register IDs to be written.
  * @param vals  Array of register values to be written.
  */
-   public void reg_write_batch(int[] regids, Object[] vals) throws UnicornException {
+   public void reg_write_batch(int[] regids, long[] vals) throws UnicornException {
       if (regids.length != vals.length) {
          throw new UnicornException(strerror(UC_ERR_ARG));
       }
@@ -858,48 +744,6 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
       return map;
    }
 
-/**
- * Hook registration for UC_HOOK_INSN hooks (x86 IN instruction only). The registered callback
- * function will be invoked whenever an x86 IN instruction is executed.
- *
- * @param callback Implementation of a InHook interface
- * @param user_data  User data to be passed to the callback function each time the event is triggered
- */
-   public void hook_add(InHook callback, Object user_data) throws UnicornException {
-      if (inHandle == 0) {
-         inHandle = registerHook(eng, UC_HOOK_INSN, Unicorn.UC_X86_INS_IN);
-      }
-      inList.add(new Tuple(callback, user_data));
-   }
-
-/**
- * Hook registration for UC_HOOK_INSN hooks (x86 OUT instruction only). The registered callback
- * function will be invoked whenever an x86 OUT instruction is executed.
- *
- * @param callback Implementation of a OutHook interface
- * @param user_data  User data to be passed to the callback function each time the event is triggered
- */
-   public void hook_add(OutHook callback, Object user_data) throws UnicornException {
-      if (outHandle == 0) {
-         outHandle = registerHook(eng, UC_HOOK_INSN, Unicorn.UC_X86_INS_OUT);
-      }
-      outList.add(new Tuple(callback, user_data));
-   }
-
-/**
- * Hook registration for UC_HOOK_INSN hooks (x86 SYSCALL/SYSENTER instruction only). The registered callback
- * function will be invoked whenever an x86 SYSCALL or SYSENTER instruction is executed.
- *
- * @param callback Implementation of a SyscallHook interface
- * @param user_data  User data to be passed to the callback function each time the event is triggered
- */
-   public void hook_add(SyscallHook callback, Object user_data) throws UnicornException {
-      if (syscallHandle == 0) {
-         syscallHandle = registerHook(eng, UC_HOOK_INSN, Unicorn.UC_X86_INS_SYSCALL);
-      }
-      syscallList.add(new Tuple(callback, user_data));
-   }
-
    public void hook_del(Hook hook) throws UnicornException {
       for (ArrayList<Tuple> l : allLists) {
          for (Tuple t : l) {
@@ -974,7 +818,7 @@ public class Unicorn implements UnicornConst, ArmConst, Arm64Const, M68kConst, S
  *
  * @param handle Previously allocated Unicorn object handle.
 */
-   public native void free(long handle);
+   public native static void free(long handle);
 
 /**
  * Save a copy of the internal CPU context.

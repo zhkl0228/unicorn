@@ -42,10 +42,10 @@ public class Sample_arm extends TestCase {
    private static void _test_arm()
    {
    
-       Long r0 = 0x1234L; // R0 register
-       Long r2 = 0x6789L; // R1 register
-       Long r3 = 0x3333L; // R2 register
-       Long r1;     // R1 register
+       long r0 = 0x1234L; // R0 register
+       long r2 = 0x6789L; // R1 register
+       long r3 = 0x3333L; // R2 register
+       long r1;     // R1 register
    
        System.out.print("Emulate ARM code\n");
    
@@ -76,10 +76,10 @@ public class Sample_arm extends TestCase {
        // now print out some registers
        System.out.print(">>> Emulation done. Below is the CPU context\n");
    
-       r0 = (Long)u.reg_read(Unicorn.UC_ARM_REG_R0);
-       r1 = (Long)u.reg_read(Unicorn.UC_ARM_REG_R1);
-       System.out.printf(">>> R0 = 0x%x\n", r0.intValue());
-       System.out.printf(">>> R1 = 0x%x\n", r1.intValue());
+       r0 = u.reg_read(Unicorn.UC_ARM_REG_R0);
+       r1 = u.reg_read(Unicorn.UC_ARM_REG_R1);
+       System.out.printf(">>> R0 = 0x%x\n", r0);
+       System.out.printf(">>> R1 = 0x%x\n", r1);
    
        u.closeAll();
    }
@@ -87,7 +87,7 @@ public class Sample_arm extends TestCase {
    private static void _test_thumb()
    {
    
-       Long sp = 0x1234L; // R0 register
+       long sp = 0x1234L; // R0 register
    
        System.out.print("Emulate THUMB code\n");
    
@@ -116,8 +116,8 @@ public class Sample_arm extends TestCase {
        // now print out some registers
        System.out.print(">>> Emulation done. Below is the CPU context\n");
    
-       sp = (Long)u.reg_read(Unicorn.UC_ARM_REG_SP);
-       System.out.printf(">>> SP = 0x%x\n", sp.intValue());
+       sp = u.reg_read(Unicorn.UC_ARM_REG_SP);
+       System.out.printf(">>> SP = 0x%x\n", sp);
    
        u.closeAll();
    }

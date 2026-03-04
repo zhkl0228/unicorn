@@ -71,9 +71,9 @@ public class Sample_arm64 extends TestCase {
    private static void _test_arm64()
    {
    
-       Long x11 = 0x1234L;     // X11 register
-       Long x13 = 0x6789L;     // X13 register
-       Long x15 = 0x3333L;     // X15 register
+       long x11 = 0x1234L;     // X11 register
+       long x13 = 0x6789L;     // X13 register
+       long x15 = 0x3333L;     // X15 register
    
        System.out.print("Emulate ARM64 code\n");
    
@@ -104,7 +104,7 @@ public class Sample_arm64 extends TestCase {
        // now print out some registers
        System.out.print(">>> Emulation done. Below is the CPU context\n");
    
-       x11 = (Long)u.reg_read(Unicorn.UC_ARM64_REG_X11);
+       x11 = u.reg_read(Unicorn.UC_ARM64_REG_X11);
        System.out.printf(">>> X11 = 0x%x\n", x11);
    
        u.closeAll();

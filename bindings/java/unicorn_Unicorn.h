@@ -285,7 +285,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_context_1alloc
  * Signature: (J)V
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_free
-  (JNIEnv *, jobject, jlong);
+  (JNIEnv *, jclass, jlong);
 
 /*
  * Class:     unicorn_Unicorn

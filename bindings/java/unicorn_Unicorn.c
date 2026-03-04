@@ -953,7 +953,7 @@ JNIEXPORT jlong JNICALL Java_unicorn_Unicorn_context_1alloc
  * Signature: (J)V
  */
 JNIEXPORT void JNICALL Java_unicorn_Unicorn_free
-  (JNIEnv *env, jobject self, jlong ctx) {
+  (JNIEnv *env, jclass cls, jlong ctx) {
    uc_err err = uc_free((void *)ctx);
    if (err != UC_ERR_OK) {
       throwException(env, err);
